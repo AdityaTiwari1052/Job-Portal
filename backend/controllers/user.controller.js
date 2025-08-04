@@ -1,0 +1,1001 @@
+import { User } from "../models/user.model.js";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+import getDataUri from "../utils/datauri.js";
+import cloudinary from "../utils/cloudinary.js";
+import nodemailer from "nodemailer";
+import crypto from "crypto";
+import { setAuthCookie } from "../utils/cookieHelper.js";
+
+// Get user by ID
+export const getUserById = async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const user = await User.findById(userId).select("-password");
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found.",
+                success: false
+            });
+        }
+        return res.status(200).json({
+            user,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Google Login
+export const googleLogin = async (req, res) => {
+    try {
+        console.log('Google login request received:', req.body);
+        const { email, name, profilePhoto } = req.body;
+        
+        if (!email || !name) {
+            console.log('Missing email or name in request');
+            return res.status(400).json({
+                message: "Email and name are required",
+                success: false
+            });
+        }
+        
+        // Find or create user
+        console.log('Looking for user with email:', email);
+        let user = await User.findOne({ email });
+        
+        if (!user) {
+            console.log('User not found, creating new user...');
+            try {
+                user = await User.create({
+                    fullname: name,
+                    email,
+                    profilePhoto: profilePhoto || `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random`,
+                    password: crypto.randomBytes(32).toString('hex'), // Random password for Google users
+                    isEmailVerified: true // Mark email as verified for Google users
+                });
+                console.log('New user created:', user);
+            } catch (error) {
+                console.error('Error creating user:', error);
+                return res.status(500).json({
+                    message: "Error creating user account",
+                    success: false,
+                    error: error.message
+                });
+            }
+        } else {
+            console.log('Existing user found:', user);
+        }
+        
+        // Generate token
+        const token = jwt.sign({ userId: user._id }, process.env.SECRET_KEY, { expiresIn: '1d' });
+        console.log('JWT token generated for user:', user._id);
+        
+        // Set HTTP-only cookie with the token
+        setAuthCookie(res, token);
+        console.log('Auth cookie set successfully');
+        
+        // Return user data without sensitive information
+        const userData = {
+            _id: user._id,
+            fullname: user.fullname,
+            email: user.email,
+            profilePhoto: user.profilePhoto,
+            role: user.role,
+            isEmailVerified: user.isEmailVerified
+        };
+        
+        return res.status(200).json({
+            message: `Welcome ${user.fullname}`,
+            user: userData,
+            success: true
+        });
+        
+    } catch (error) {
+        console.error('Google login error:', error);
+        return res.status(500).json({
+            message: "Internal server error during Google login",
+            success: false,
+            error: error.message
+        });
+    }
+};
+
+// Login
+export const login = async (req, res) => {
+    try {
+        const { email, password, role } = req.body;
+        
+        if (!email || !password || !role) {
+            return res.status(400).json({
+                message: "Something is missing",
+                success: false
+            });
+        }
+        
+        let user = await User.findOne({ email });
+        if (!user) {
+            return res.status(400).json({
+                message: "Incorrect email or password.",
+                success: false,
+            });
+        }
+        
+        const isPasswordMatch = await bcrypt.compare(password, user.password);
+        if (!isPasswordMatch) {
+            return res.status(400).json({
+                message: "Incorrect email or password.",
+                success: false,
+            });
+        }
+        
+        if (role !== user.role) {
+            return res.status(400).json({
+                message: "Account doesn't exist with current role.",
+                success: false
+            });
+        }
+        
+        // Generate token
+        const token = jwt.sign({ userId: user._id }, process.env.SECRET_KEY, { expiresIn: '1d' });
+        
+        // Set HTTP-only cookie with the token
+        setAuthCookie(res, token);
+        
+        // Return user data without sensitive information
+        const userData = {
+            _id: user._id,
+            fullname: user.fullname,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            role: user.role,
+            profile: user.profile,
+            isEmailVerified: user.isEmailVerified
+        };
+        
+        return res.status(200).json({
+            message: `Welcome back ${user.fullname}`,
+            user: userData,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Logout
+export const logout = async (req, res) => {
+    try {
+        // Clear the authentication cookie
+        return clearAuthCookie(res)
+            .status(200)
+            .json({
+                message: "Logged out successfully.",
+                success: true
+            });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Register
+export const register = async (req, res) => {
+    try {
+        const { fullname, email, phoneNumber, password, role } = req.body;
+        
+        if (!fullname || !email || !phoneNumber || !password || !role) {
+            return res.status(400).json({
+                message: "Something is missing",
+                success: false
+            });
+        }
+        
+        const user = await User.findOne({ email });
+        if (user) {
+            return res.status(400).json({
+                message: 'User already exist with this email.',
+                success: false,
+            });
+        }
+        
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // Create new user
+        const newUser = await User.create({
+            fullname,
+            email,
+            phoneNumber,
+            password: hashedPassword,
+            role,
+            isEmailVerified: false // Email verification will be handled separately
+        });
+        
+        // Generate token for the new user
+        const token = jwt.sign({ userId: newUser._id }, process.env.SECRET_KEY, { expiresIn: '1d' });
+        
+        // Set HTTP-only cookie with the token
+        setAuthCookie(res, token);
+        
+        // Return user data without sensitive information
+        const userData = {
+            _id: newUser._id,
+            fullname: newUser.fullname,
+            email: newUser.email,
+            phoneNumber: newUser.phoneNumber,
+            role: newUser.role,
+            isEmailVerified: newUser.isEmailVerified
+        };
+        
+        return res.status(201).json({
+            message: "Account created successfully.",
+            user: userData,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Update Profile
+export const updateProfile = async (req, res) => {
+    try {
+        console.log('📝 UPDATE PROFILE - Raw request body:', JSON.stringify(req.body, null, 2));
+        
+        const { 
+            fullname, 
+            email, 
+            phoneNumber, 
+            bio, 
+            skills,
+            education,
+            experience,
+            certifications,
+            headline,
+            location,
+            about
+        } = req.body;
+        
+        console.log('📝 UPDATE PROFILE - Destructured data:', {
+            fullname,
+            email,
+            phoneNumber,
+            bio,
+            skills,
+            education: education ? `Array with ${education.length} items` : 'not provided',
+            experience: experience ? `Array with ${experience.length} items` : 'not provided',
+            certifications: certifications ? `Array with ${certifications.length} items` : 'not provided',
+            headline,
+            location,
+            about
+        });
+        
+        const file = req.file;
+        let cloudResponse;
+        if (file) {
+            const fileUri = getDataUri(file);
+            cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+        }
+        
+        let skillsArray;
+        if (skills) {
+            // Handle skills as either array (new format) or comma-separated string (legacy format)
+            if (Array.isArray(skills)) {
+                console.log('📝 UPDATE PROFILE - Skills received as array:', skills);
+                skillsArray = skills;
+            } else if (typeof skills === 'string') {
+                console.log('📝 UPDATE PROFILE - Skills received as string, splitting:', skills);
+                skillsArray = skills.split(",");
+            }
+            console.log('📝 UPDATE PROFILE - Final skills array:', skillsArray);
+        }
+        
+        const userId = req.user._id;
+        console.log('📝 UPDATE PROFILE - User ID:', userId);
+        
+        let user = await User.findById(userId);
+        
+        if (!user) {
+            console.log('📝 UPDATE PROFILE - ERROR: User not found for ID:', userId);
+            return res.status(400).json({
+                message: "User not found.",
+                success: false
+            });
+        }
+        
+        console.log('📝 UPDATE PROFILE - User found, current profile:', JSON.stringify(user.profile, null, 2));
+        
+        // Initialize profile if it doesn't exist
+        if (!user.profile) {
+            user.profile = {};
+            console.log('📝 UPDATE PROFILE - Initialized empty profile');
+        }
+        
+        // Update basic fields
+        if (fullname) {
+            user.fullname = fullname;
+            console.log('📝 UPDATE PROFILE - Updated fullname:', fullname);
+        }
+        if (email) {
+            user.email = email;
+            console.log('📝 UPDATE PROFILE - Updated email:', email);
+        }
+        if (phoneNumber) {
+            user.phoneNumber = phoneNumber;
+            console.log('📝 UPDATE PROFILE - Updated phoneNumber:', phoneNumber);
+        }
+        if (bio) {
+            user.profile.bio = bio;
+            console.log('📝 UPDATE PROFILE - Updated bio:', bio);
+        }
+        if (about) {
+            user.profile.about = about;
+            console.log('📝 UPDATE PROFILE - Updated about:', about);
+        }
+        if (headline) {
+            user.profile.headline = headline;
+            console.log('📝 UPDATE PROFILE - Updated headline:', headline);
+        }
+        if (location) {
+            user.profile.location = location;
+            console.log('📝 UPDATE PROFILE - Updated location:', location);
+        }
+        if (skillsArray) {
+            user.profile.skills = skillsArray;
+            console.log('📝 UPDATE PROFILE - Updated skills:', skillsArray);
+        }
+        
+        // Update arrays - these are the critical missing pieces!
+        if (education !== undefined) {
+            console.log('📝 UPDATE PROFILE - Updating education from:', user.profile.education);
+            console.log('📝 UPDATE PROFILE - Updating education to:', education);
+            user.profile.education = education;
+            console.log('📝 UPDATE PROFILE - Education updated successfully');
+        }
+        if (experience !== undefined) {
+            console.log('📝 UPDATE PROFILE - Updating experience from:', user.profile.experience);
+            console.log('📝 UPDATE PROFILE - Updating experience to:', experience);
+            user.profile.experience = experience;
+            console.log('📝 UPDATE PROFILE - Experience updated successfully');
+        }
+        if (certifications !== undefined) {
+            console.log('📝 UPDATE PROFILE - Updating certifications from:', user.profile.certifications);
+            console.log('📝 UPDATE PROFILE - Updating certifications to:', certifications);
+            user.profile.certifications = certifications;
+            console.log('📝 UPDATE PROFILE - Certifications updated successfully');
+        }
+        
+        if (cloudResponse) {
+            user.profile.profilePhoto = cloudResponse.secure_url;
+            user.profile.profilePhotoOriginalName = file.originalname;
+            console.log('📝 UPDATE PROFILE - Updated profile photo');
+        }
+        
+        console.log('📝 UPDATE PROFILE - About to save user with profile:', JSON.stringify(user.profile, null, 2));
+        
+        await user.save();
+        console.log('📝 UPDATE PROFILE - User saved successfully to database');
+        
+        // Verify the save by fetching the user again
+        const savedUser = await User.findById(userId);
+        console.log('📝 UPDATE PROFILE - Verification: User profile after save:', JSON.stringify(savedUser.profile, null, 2));
+        
+        user = {
+            _id: user._id,
+            fullname: user.fullname,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            role: user.role,
+            profile: user.profile
+        };
+        
+        console.log('📝 UPDATE PROFILE - Sending response with user:', JSON.stringify(user, null, 2));
+        
+        return res.status(200).json({
+            message: "Profile updated successfully.",
+            user,
+            success: true
+        });
+    } catch (error) {
+        console.log('❌ UPDATE PROFILE ERROR - Full error:', error);
+        console.log('❌ UPDATE PROFILE ERROR - Error message:', error.message);
+        console.log('❌ UPDATE PROFILE ERROR - Error stack:', error.stack);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Forgot Password
+export const forgotPassword = async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({
+                message: "Email is required",
+                success: false
+            });
+        }
+        
+        const user = await User.findOne({ email });
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found with this email",
+                success: false
+            });
+        }
+        
+        // Generate OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        
+        user.resetPasswordOTP = otp;
+        user.resetPasswordExpiry = otpExpiry;
+        await user.save();
+        
+        // Send OTP via email (configure your email service)
+        const transporter = nodemailer.createTransporter({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
+        
+        const mailOptions = {
+            from: process.env.EMAIL_USER,
+            to: email,
+            subject: 'Password Reset OTP',
+            text: `Your OTP for password reset is: ${otp}. This OTP will expire in 10 minutes.`
+        };
+        
+        await transporter.sendMail(mailOptions);
+        
+        return res.status(200).json({
+            message: "OTP sent to your email",
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Verify OTP for forgot password
+export const verifyOtpforgotpassword = async (req, res) => {
+    try {
+        const { email, otp, newPassword } = req.body;
+        
+        if (!email || !otp || !newPassword) {
+            return res.status(400).json({
+                message: "Email, OTP and new password are required",
+                success: false
+            });
+        }
+        
+        const user = await User.findOne({ 
+            email,
+            resetPasswordOTP: otp,
+            resetPasswordExpiry: { $gt: Date.now() }
+        });
+        
+        if (!user) {
+            return res.status(400).json({
+                message: "Invalid or expired OTP",
+                success: false
+            });
+        }
+        
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+        user.resetPasswordOTP = undefined;
+        user.resetPasswordExpiry = undefined;
+        await user.save();
+        
+        return res.status(200).json({
+            message: "Password reset successfully",
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Change Password
+export const changePassword = async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const userId = req.id;
+        
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({
+                message: "Current password and new password are required",
+                success: false
+            });
+        }
+        
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found",
+                success: false
+            });
+        }
+        
+        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isCurrentPasswordValid) {
+            return res.status(400).json({
+                message: "Current password is incorrect",
+                success: false
+            });
+        }
+        
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedNewPassword;
+        await user.save();
+        
+        return res.status(200).json({
+            message: "Password changed successfully",
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Send OTP for phone verification
+export const sendOtpForPhoneVerification = async (req, res) => {
+    try {
+        const { phoneNumber } = req.body;
+        const userId = req.id;
+        
+        if (!phoneNumber) {
+            return res.status(400).json({
+                message: "Phone number is required",
+                success: false
+            });
+        }
+        
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found",
+                success: false
+            });
+        }
+        
+        user.phoneVerificationOTP = otp;
+        user.phoneVerificationExpiry = otpExpiry;
+        await user.save();
+        
+        // In a real application, you would send SMS here
+        // For now, we'll just return the OTP (remove this in production)
+        return res.status(200).json({
+            message: "OTP sent successfully",
+            otp: otp, // Remove this in production
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Update phone number
+export const updatePhoneNumber = async (req, res) => {
+    try {
+        const { phoneNumber, otp } = req.body;
+        const userId = req.id;
+        
+        if (!phoneNumber || !otp) {
+            return res.status(400).json({
+                message: "Phone number and OTP are required",
+                success: false
+            });
+        }
+        
+        const user = await User.findOne({
+            _id: userId,
+            phoneVerificationOTP: otp,
+            phoneVerificationExpiry: { $gt: Date.now() }
+        });
+        
+        if (!user) {
+            return res.status(400).json({
+                message: "Invalid or expired OTP",
+                success: false
+            });
+        }
+        
+        user.phoneNumber = phoneNumber;
+        user.phoneVerificationOTP = undefined;
+        user.phoneVerificationExpiry = undefined;
+        await user.save();
+        
+        return res.status(200).json({
+            message: "Phone number updated successfully",
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Toggle Follow
+export const toggleFollow = async (req, res) => {
+    try {
+        const followerId = req.id;
+        const followingId = req.params.id;
+        
+        if (followerId === followingId) {
+            return res.status(400).json({
+                message: "You cannot follow yourself",
+                success: false
+            });
+        }
+        
+        const follower = await User.findById(followerId);
+        const following = await User.findById(followingId);
+        
+        if (!follower || !following) {
+            return res.status(404).json({
+                message: "User not found",
+                success: false
+            });
+        }
+        
+        const isFollowing = follower.following.includes(followingId);
+        
+        if (isFollowing) {
+            // Unfollow
+            follower.following.pull(followingId);
+            following.followers.pull(followerId);
+        } else {
+            // Follow
+            follower.following.push(followingId);
+            following.followers.push(followerId);
+        }
+        
+        await follower.save();
+        await following.save();
+        
+        return res.status(200).json({
+            message: isFollowing ? "Unfollowed successfully" : "Followed successfully",
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Get Notifications
+export const getNotifications = async (req, res) => {
+    try {
+        const userId = req.user?._id || req.id; // Handle both req.user (from auth middleware) and req.id
+        
+        if (!userId) {
+            return res.status(401).json({
+                message: "Authentication required",
+                success: false
+            });
+        }
+
+        const user = await User.findById(userId)
+            .select('notifications')
+            .populate({
+                path: 'notifications.from',
+                select: 'fullname profile.profilePhoto username',
+                model: 'User'
+            })
+            .sort({ 'notifications.date': -1 }); // Sort by most recent first
+        
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found",
+                success: false
+            });
+        }
+        
+        // Format the notifications for the response
+        const formattedNotifications = (user.notifications || []).map(notification => ({
+            _id: notification._id,
+            from: notification.from ? {
+                _id: notification.from._id,
+                fullname: notification.from.fullname,
+                username: notification.from.username,
+                profilePhoto: notification.from.profile?.profilePhoto
+            } : null,
+            message: notification.message,
+            type: notification.type,
+            link: notification.link,
+            date: notification.date,
+            read: notification.read,
+            metadata: notification.metadata ? Object.fromEntries(notification.metadata) : {}
+        }));
+        
+        return res.status(200).json({
+            notifications: formattedNotifications,
+            success: true,
+            count: formattedNotifications.length,
+            unreadCount: formattedNotifications.filter(n => !n.read).length
+        });
+        
+    } catch (error) {
+        console.error('Error in getNotifications:', error);
+        return res.status(500).json({
+            message: error.message || "Failed to fetch notifications",
+            success: false,
+            error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+    }
+};
+
+// Mark all notifications as read
+export const markAllNotificationsAsRead = async (req, res) => {
+    try {
+        const userId = req.id;
+        
+        await User.findByIdAndUpdate(userId, {
+            $set: { "notifications.$[].read": true }
+        });
+        
+        return res.status(200).json({
+            message: "All notifications marked as read",
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Search Users
+export const searchUsers = async (req, res) => {
+    try {
+        const { username } = req.params;
+        
+        const users = await User.find({
+            $or: [
+                { fullname: { $regex: username, $options: 'i' } },
+                { email: { $regex: username, $options: 'i' } }
+            ]
+        }).select('-password');
+        
+        return res.status(200).json({
+            users,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Get User Profile
+export const getUserProfile = async (req, res) => {
+    try {
+        const { username } = req.params;
+        
+        const user = await User.findOne({
+            $or: [
+                { fullname: username },
+                { email: username }
+            ]
+        }).select('-password');
+        
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found",
+                success: false
+            });
+        }
+        
+        return res.status(200).json({
+            user,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Get All Users
+export const getAllUsers = async (req, res) => {
+    try {
+        const users = await User.find().select('-password');
+        
+        return res.status(200).json({
+            users,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Get My Profile
+export const getMyProfile = async (req, res) => {
+    try {
+        const userId = req.id;
+        const user = await User.findById(userId).select('-password');
+        
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found",
+                success: false
+            });
+        }
+        
+        return res.status(200).json({
+            user,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Get GitHub Client ID
+export const getGitHubClientId = async (req, res) => {
+    try {
+        return res.status(200).json({
+            clientId: process.env.GITHUB_CLIENT_ID,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Handle GitHub Callback
+export const handleGitHubCallback = async (req, res) => {
+    try {
+        const { code } = req.query;
+        
+        if (!code) {
+            return res.status(400).json({
+                message: "Authorization code is required",
+                success: false
+            });
+        }
+        
+        // Exchange code for access token
+        const tokenResponse = await fetch('https://github.com/login/oauth/access_token', {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                client_id: process.env.GITHUB_CLIENT_ID,
+                client_secret: process.env.GITHUB_CLIENT_SECRET,
+                code: code
+            })
+        });
+        
+        const tokenData = await tokenResponse.json();
+        
+        if (!tokenData.access_token) {
+            return res.status(400).json({
+                message: "Failed to get access token",
+                success: false
+            });
+        }
+        
+        // Get user data from GitHub
+        const userResponse = await fetch('https://api.github.com/user', {
+            headers: {
+                'Authorization': `token ${tokenData.access_token}`
+            }
+        });
+        
+        const githubUser = await userResponse.json();
+        
+        // Check if user exists or create new user
+        let user = await User.findOne({ email: githubUser.email });
+        
+        if (!user) {
+            user = await User.create({
+                fullname: githubUser.name || githubUser.login,
+                email: githubUser.email,
+                profile: {
+                    profilePhoto: githubUser.avatar_url,
+                    bio: githubUser.bio
+                },
+                password: crypto.randomBytes(32).toString('hex') // Random password for GitHub users
+            });
+        }
+        
+        const tokenData2 = {
+            userId: user._id
+        };
+        const token = await jwt.sign(tokenData2, process.env.SECRET_KEY, { expiresIn: '1d' });
+        
+        const cookieOptions = {
+            maxAge: 1 * 24 * 60 * 60 * 1000, // 1 day
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // true in production for HTTPS
+            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            path: '/'
+        };
+        
+        return res.status(200)
+            .cookie("token", token, cookieOptions)
+            .json({
+            message: `Welcome ${user.fullname}`,
+            user,
+            success: true
+        });
+    } catch (error) {
+        console.log(error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
