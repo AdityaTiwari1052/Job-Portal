@@ -41,7 +41,7 @@ export function PostDialog({ setOpen, open, refreshPosts }) {
       formData.append("description", inputText);
       if (selectedFile) formData.append("image", selectedFile);
 
-      const { data } = await axios.post("http://localhost:8000/api/posts", formData, {
+      const { data } = await axios.post("https://job-portal-v3b1.onrender.com/api/posts", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
           Authorization: `Bearer ${localStorage.getItem("token")}`,

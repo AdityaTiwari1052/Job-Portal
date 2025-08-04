@@ -12,7 +12,7 @@ const Feed = () => {
 
   const refreshPosts = async () => {
     try {
-      const { data } = await axios.get("http://localhost:8000/api/posts");
+      const { data } = await axios.get("https://job-portal-v3b1.onrender.com/api/posts");
       dispatch(setPosts(data.posts || []));
 
     } catch (error) {

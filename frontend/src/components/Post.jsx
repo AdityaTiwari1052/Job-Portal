@@ -28,7 +28,7 @@ const Post = ({ post, refreshPosts }) => {
   const handleFollowToggle = async () => {
     try {
       const res = await axios.post(
-        `http://localhost:8000/api/v1/user/${post.user._id}/follow`,
+        `https://job-portal-v3b1.onrender.com/api/v1/user/${post.user._id}/follow`,
         {},
         { withCredentials: true }
       );
@@ -43,7 +43,7 @@ const Post = ({ post, refreshPosts }) => {
 
   const handleDelete = async (postId) => {
     try {
-      await axios.delete(`http://localhost:8000/api/posts/${postId}`, {
+      await axios.delete(`https://job-portal-v3b1.onrender.com/api/posts/${postId}`, {
         withCredentials: true,
       });
 

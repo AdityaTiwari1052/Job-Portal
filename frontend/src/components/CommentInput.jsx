@@ -24,7 +24,7 @@ const CommentInput = ({ postId }) => {
 
   try {
     const { data } = await axios.post(
-      `http://localhost:8000/api/posts/${postId}/comments`,
+      `https://job-portal-v3b1.onrender.com/api/posts/${postId}/comments`,
       { textMessage: text },
       { withCredentials: true }
     );

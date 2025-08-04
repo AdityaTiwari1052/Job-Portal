@@ -31,7 +31,7 @@ const SocialOptions = ({ post }) => {
     setLikes(updatedLikes);
 
     try {
-      await axios.post(`http://localhost:8000/api/posts/${post._id}/like`, 
+      await axios.post(`https://job-portal-v3b1.onrender.com/api/posts/${post._id}/like`, 
         {
         userId: user._id},
         { withCredentials: true }
@@ -40,7 +40,7 @@ const SocialOptions = ({ post }) => {
       toast.success(liked ? "Disliked post" : "Liked post");
 
       // Optionally fetch fresh likes count (if backend returns updated data)
-      const { data } = await axios.get(`http://localhost:8000/api/posts/${post._id}`,
+      const { data } = await axios.get(`https://job-portal-v3b1.onrender.com/api/posts/${post._id}`,
         { withCredentials: true }
       );
       setLikes(data.likes || []);

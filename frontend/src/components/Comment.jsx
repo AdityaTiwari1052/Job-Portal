@@ -18,7 +18,7 @@ const Comment = ({ comment, postId }) => {
     try {
       const { data } = await axios.delete(
         
-        `http://localhost:8000/api/posts/${postId}/comments/${comment._id}`,
+        `https://job-portal-v3b1.onrender.com/api/posts/${postId}/comments/${comment._id}`,
         { withCredentials: true }
       );
       toast.success("Comment deleted ✅");
