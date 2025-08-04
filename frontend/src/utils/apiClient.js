@@ -6,7 +6,7 @@ import store from '@/redux/store';
 
 // Create axios instance with base config
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://job-portal-v3b1.onrender.com',
   withCredentials: true, // This is important for sending/receiving cookies
   headers: {
     'Content-Type': 'application/json',
