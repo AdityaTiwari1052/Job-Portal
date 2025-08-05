@@ -41,26 +41,96 @@ const Login = () => {
     try {
       dispatch(setLoading(true));
       
-      // Add role to the login request
+      // Log the input data for debugging
+      console.log('Login attempt with:', { 
+        identifier: input.identifier,
+        hasPassword: !!input.password 
+      });
+      
+      // Prepare the request data
       const loginData = {
-        ...input,
-        role: 'user' // or get this from a role selector in the UI
+        email: input.identifier, // Using identifier as email
+        password: input.password
       };
       
-      const res = await apiClient.post('/login', loginData);
+      const url = `${import.meta.env.VITE_API_BASE_URL || 'https://job-portal-v3b1.onrender.com'}/api/v1/user/login`;
+      const options = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify(loginData, null, 2)  // Pretty print for better logging
+      };
       
-      if (res.data.success) {
-        const userData = res.data.user;
+      console.log('=== FRONTEND REQUEST ===');
+      console.log('URL:', url);
+      console.log('Options:', JSON.stringify(options, null, 2));
+      console.log('Request body:', options.body);
+      
+      // Make the request
+      const res = await fetch(url, options);
+      
+      // Parse the response
+      let data;
+      try {
+        data = await res.json();
+        console.log('=== FRONTEND RESPONSE ===');
+        console.log('Status:', res.status, res.statusText);
+        console.log('Response data:', data);
+      } catch (e) {
+        console.error('Error parsing JSON response:', e);
+        throw { response: { status: res.status, statusText: res.statusText, error: e.message } };
+      }
+      
+      // If the response is not ok, throw an error with the response data
+      if (!res.ok) {
+        throw { 
+          response: { 
+            data, 
+            status: res.status, 
+            statusText: res.statusText,
+            headers: Object.fromEntries(res.headers.entries())
+          } 
+        };
+      }
+      
+      console.log('Login successful:', data);
+      
+      if (data.success) {
+        const userData = data.user;
         dispatch(setUser(userData));
         
         // Redirect to home or intended URL
         const redirectTo = location.state?.from?.pathname || '/';
+        console.log('Login successful, redirecting to:', redirectTo);
         navigate(redirectTo);
-        toast.success(res.data.message);
+        toast.success(data.message);
       }
     } catch (error) {
-      console.log(error);
-      const errorMessage = error.response?.data?.message || "Login failed";
+      // Log complete error object
+      console.error('Complete error object:', error);
+      
+      // Log response data if it exists
+      if (error.response) {
+        console.error('Error response data:', error.response.data);
+        console.error('Error response status:', error.response.status);
+        console.error('Error response headers:', error.response.headers);
+      } else if (error.request) {
+        console.error('No response received. Request was:', error.request);
+      } else {
+        console.error('Error setting up the request:', error.message);
+      }
+      
+      // Extract error message
+      const errorMessage = error.response?.data?.message || 
+                         error.response?.data?.error || 
+                         (error.response?.data && JSON.stringify(error.response.data)) || 
+                         error.message || 
+                         "Login failed. Please try again.";
+      
+      console.error('Displaying error to user:', errorMessage);
       toast.error(errorMessage);
     } finally {
       dispatch(setLoading(false));

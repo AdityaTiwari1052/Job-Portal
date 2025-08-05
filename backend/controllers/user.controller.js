@@ -109,35 +109,176 @@ export const googleLogin = async (req, res) => {
 // Login
 export const login = async (req, res) => {
     try {
-        const { email, password, role } = req.body;
+        console.log('\n=== LOGIN REQUEST ===');
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
         
-        if (!email || !password || !role) {
+        const { email, password } = req.body;
+        
+        // Validate required fields
+        if (!email || !password) {
             return res.status(400).json({
                 message: "Something is missing",
                 success: false
             });
         }
         
+        console.log('Looking for user with email:', email);
         let user = await User.findOne({ email });
         if (!user) {
+            console.log('No user found with email:', email);
             return res.status(400).json({
                 message: "Incorrect email or password.",
-                success: false,
+                success: false
             });
         }
         
+        console.log('User found, checking password...');
         const isPasswordMatch = await bcrypt.compare(password, user.password);
         if (!isPasswordMatch) {
+            console.log('Password does not match');
             return res.status(400).json({
                 message: "Incorrect email or password.",
-                success: false,
+                success: false
             });
         }
         
-        if (role !== user.role) {
+        // Generate token
+        const token = jwt.sign({ userId: user._id }, process.env.SECRET_KEY, { expiresIn: '1d' });
+        
+        // Set HTTP-only cookie with the token
+        setAuthCookie(res, token);
+        
+        // Return user data without sensitive information
+        const userData = {
+            _id: user._id,
+            fullname: user.fullname,
+            email: user.email,
+            phoneNumber: user.phoneNumber,
+            role: user.role,
+            profile: user.profile
+        };
+        
+        console.log('Login successful for user:', user.email);
+        return res.status(200).json({
+            message: `Welcome back ${user.fullname}`,
+            user: userData,
+            success: true
+        });
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        return res.status(500).json({
+            message: "Internal server error",
+            success: false
+        });
+    }
+};
+
+// Separate function to handle the login logic
+const processLogin = async (req, res) => {
+    try {
+        console.log('\n=== LOGIN REQUEST ===');
+        console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+        
+        // Log raw request details
+        console.log('\n=== RAW REQUEST ===');
+        console.log('Raw request body:', req.body);
+        console.log('Raw headers:', req.headers);
+        
+        // Log parsed request details
+        console.log('\n=== PARSED REQUEST ===');
+        console.log('Parsed body type:', typeof req.body);
+        console.log('Parsed body keys:', Object.keys(req.body || {}));
+        console.log('Request content type:', req.get('Content-Type'));
+        
+        // Log raw body if available
+        if (req.rawBody) {
+            console.log('Raw body:', req.rawBody);
+        } else {
+            console.log('No raw body available');
+            // Try to read the raw body from the request stream
+            let data = [];
+            req.on('data', chunk => data.push(chunk));
+            req.on('end', () => {
+                const rawBody = Buffer.concat(data).toString();
+                console.log('Read raw body from stream:', rawBody);
+            });
+        }
+        
+        // Log all request properties
+        console.log('\n=== REQUEST PROPERTIES ===');
+        console.log('req.body exists:', !!req.body);
+        console.log('req.body content:', req.body);
+        console.log('req.rawBody exists:', !!req.rawBody);
+        console.log('req._readableState:', req._readableState);
+        
+        // Ensure body is properly parsed
+        if (!req.body || typeof req.body !== 'object' || Object.keys(req.body).length === 0) {
+            console.error('Invalid or empty request body:', req.body);
             return res.status(400).json({
-                message: "Account doesn't exist with current role.",
-                success: false
+                message: 'Invalid or empty request body',
+                success: false,
+                error: 'INVALID_REQUEST_BODY',
+                receivedBody: req.body ? JSON.stringify(req.body) : 'No body received',
+                bodyType: typeof req.body,
+                bodyKeys: Object.keys(req.body || {}),
+                headers: req.headers,
+                rawBody: req.rawBody || 'No raw body',
+                rawHeaders: req.rawHeaders
+            });
+        }
+        
+        // Destructure and validate required fields
+        const { email, password } = req.body;
+        
+        // Log parsed values (redacting password)
+        console.log('\n=== PARSED VALUES ===');
+        console.log('Email:', email || '[MISSING]');
+        console.log('Password:', password ? '[PROVIDED]' : '[MISSING]');
+        
+        // Validate required fields
+        const missingFields = [];
+        if (!email || typeof email !== 'string' || !email.trim()) missingFields.push('email');
+        if (!password || typeof password !== 'string') missingFields.push('password');
+        
+        if (missingFields.length > 0) {
+            const errorMessage = `Missing or invalid fields: ${missingFields.join(', ')}`;
+            console.error('Validation failed:', errorMessage);
+            
+            return res.status(400).json({
+                message: errorMessage,
+                success: false,
+                error: 'VALIDATION_ERROR',
+                details: {
+                    missingFields,
+                    received: {
+                        email: email ? 'present' : 'missing',
+                        password: password ? 'present' : 'missing',
+                        requestContentType: req.get('Content-Type')
+                    }
+                }
+            });
+        }
+        
+        console.log('Looking for user with email:', email);
+        let user = await User.findOne({ email });
+        if (!user) {
+            console.log('No user found with email:', email);
+            return res.status(400).json({
+                message: "Incorrect email or password.",
+                success: false,
+                error: "USER_NOT_FOUND"
+            });
+        }
+        
+        console.log('User found, checking password...');
+        const isPasswordMatch = await bcrypt.compare(password, user.password);
+        if (!isPasswordMatch) {
+            console.log('Password does not match');
+            return res.status(400).json({
+                message: "Incorrect email or password.",
+                success: false,
+                error: "INVALID_CREDENTIALS"
             });
         }
         
