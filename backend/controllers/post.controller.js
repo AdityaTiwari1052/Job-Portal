@@ -6,8 +6,8 @@ import cloudinary from "../utils/cloudinary.js";
 
 export const createPost = async (req, res) => {
   try {
-    g("📥 Incoming post:", req.body);
-    g("📎 Uploaded files:", req.files);
+    console.log("📥 Incoming post:", req.body);
+    console.log("📎 Uploaded files:", req.files);
 
     const { description } = req.body;
     const userId = req.user?._id;
@@ -18,7 +18,7 @@ export const createPost = async (req, res) => {
     if (req.files?.image?.[0]) {
       const file = req.files.image[0];
       const fileUri = getDataUri(file);
-      g("🔗 File URI:", fileUri);
+      console.log("🔗 File URI:", fileUri);
 
       const cloudResponse = await cloudinary.uploader.upload(fileUri.content);
       imageUrl = cloudResponse.secure_url;

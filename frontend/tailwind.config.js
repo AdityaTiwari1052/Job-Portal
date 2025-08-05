@@ -1,5 +1,12 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  safelist: [
+    // Preserve dynamically generated utility classes used via string interpolation
+    {
+      pattern: /^(bg|text|border|ring|fill|stroke)-(primary|secondary|muted|accent|foreground|background|border|red|green|blue|yellow|indigo|purple|pink|gray)(-(50|100|200|300|400|500|600|700|800|900))?$/,
+      variants: ['hover', 'ui-selected', 'focus', 'active', 'disabled']
+    },
+  ],
   darkMode: ["class"],
   content: [
     './pages/**/*.{js,jsx}',

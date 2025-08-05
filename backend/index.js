@@ -138,9 +138,8 @@ app.use(cors(corsOptions));
 // Add security headers middleware
 app.use((req, res, next) => {
   // Set security headers
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  // Relaxed security headers - removed COEP/CORP to allow external resource loading
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
   
   // For Cloudinary and other external resources
   res.setHeader('Content-Security-Policy', 
@@ -151,12 +150,7 @@ app.use((req, res, next) => {
 });
 
 // Add security headers
-app.use((req, res, next) => {
-  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
-  res.header('Cross-Origin-Embedder-Policy', 'require-corp');
-  res.header('Cross-Origin-Opener-Policy', 'same-origin');
-  next();
-});
+// Duplicate COEP/CORP middleware removed – handled earlier with relaxed policy
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
