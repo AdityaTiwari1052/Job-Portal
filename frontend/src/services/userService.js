@@ -5,7 +5,7 @@ const userService = {
   updateProfile: async (profileData) => {
     try {
       console.log('Sending profile update to /profile/update', JSON.stringify(profileData, null, 2));
-      const response = await apiClient.post('/profile/update', profileData);
+      const response = await apiClient.post('/api/v1/user/profile/update', profileData);
       console.log('Profile update successful:', response.data);
       return response.data;
     } catch (error) {

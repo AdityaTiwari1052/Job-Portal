@@ -2,7 +2,7 @@ import React from 'react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Trash2 } from 'lucide-react';
 import ReactTimeago from 'react-timeago';
-import axios from 'axios';
+import apiClient from '@/utils/apiClient';
 import { useSelector } from 'react-redux';
 import { toast } from 'sonner';
 import { useDispatch } from 'react-redux';
@@ -16,10 +16,8 @@ const Comment = ({ comment, postId }) => {
 
   const handleDelete = async () => {
     try {
-      const { data } = await axios.delete(
-        
-        `https://job-portal-v3b1.onrender.com/api/posts/${postId}/comments/${comment._id}`,
-        { withCredentials: true }
+      const { data } = await apiClient.delete(
+        `/api/v1/posts/${postId}/comments/${comment._id}`
       );
       toast.success("Comment deleted ✅");
       dispatch(updateSinglePost(data)); // updated post returned from backend

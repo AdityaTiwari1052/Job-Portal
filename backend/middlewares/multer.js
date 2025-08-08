@@ -23,13 +23,13 @@ const upload = multer({
   fileFilter
 });
 
-// Define fields you're expecting from frontend
+// Single file upload for profile photo
+export const singleUpload = upload.single('profilePhoto');
+
+// Multiple file uploads for other routes
 export const multiUpload = upload.fields([
   { name: "resumeFile", maxCount: 1 },
   { name: "profilePhoto", maxCount: 1 },
   { name: "coverPhoto", maxCount: 1 },
   { name: "image", maxCount: 1 } // for post image
 ]);
-
-// Single file upload middleware
-export const singleUpload = upload.single('file');

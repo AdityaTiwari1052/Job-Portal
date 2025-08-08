@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { MessageCircleMore, Repeat, Send, ThumbsUp } from 'lucide-react';
 import CommentInput from './CommentInput';
 import Comments from './Comments';
-import axios from 'axios';
+import apiClient from '@/utils/apiClient';
 import { toast } from 'sonner';
 
 
@@ -31,18 +31,16 @@ const SocialOptions = ({ post }) => {
     setLikes(updatedLikes);
 
     try {
-      await axios.post(`https://job-portal-v3b1.onrender.com/api/posts/${post._id}/like`, 
-        {
-        userId: user._id},
-        { withCredentials: true }
-      );
+      await apiClient.post(`/api/v1/posts/${post._id}/like`, {
+        userId: user._id
+      }, { withCredentials: true });
 
       toast.success(liked ? "Disliked post" : "Liked post");
 
       // Optionally fetch fresh likes count (if backend returns updated data)
-      const { data } = await axios.get(`https://job-portal-v3b1.onrender.com/api/posts/${post._id}`,
-        { withCredentials: true }
-      );
+      const { data } = await apiClient.get(`/api/v1/posts/${post._id}`, {
+        withCredentials: true
+      });
       setLikes(data.likes || []);
     } catch (error) {
       setLiked(prevLiked);

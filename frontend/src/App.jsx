@@ -4,7 +4,7 @@ import { ThemeProvider } from './components/ui/theme-provider';
 import { useDispatch } from 'react-redux';
 import { setUser } from './redux/authSlice';
 import axios from 'axios';
-import { USER_API_END_POINT } from './utils/constant';
+import apiClient from './utils/apiClient';
 import { toast } from 'sonner';
 
 // All your other imports...
@@ -13,25 +13,19 @@ import Navbar from "./components/shared/Navbar";
 import Login from "./components/auth/Login";
 import Signup from "./components/auth/Signup";
 import Home from "./components/Home";
-import Job from "./components/Job";
-import Jobs from "./components/Jobs";
+import JobsPage from "./components/JobsPage";
 import JobDescription from "./components/JobDescription";
 import Companies from "./components/admin/Companies";
-import CompanyCreate from "./components/admin/CompanyCreate";
 import CompanySetup from "./components/admin/CompanySetup";
-import AdminJobs from "./components/admin/AdminJobs";
-import PostJob from "./components/admin/PostJob";
-import Applicants from "./components/admin/Applicants";
 import ProtectedRoute from "./components/admin/ProtectedRoute";
 import VerifyforgotPassword from "./components/auth/Verifyforgotpassword";
 import ForgotPassword from "./components/auth/ForgotPassword";
 import Profile from "./components/Profile";
-
 import AccountSettings from "./components/AccountSettings";
-
 import EditProfile from "./components/EditProfile";
 import Network from "./components/Network";
-
+import Applicants from "./components/admin/Applicants";
+import DebugInfo from "./components/DebugInfo";
 
 // ... (rest of your imports)
 
@@ -42,8 +36,18 @@ const appRouter = createBrowserRouter([
     element: <Layout />,
     children: [
       { path: "home", element: <Home /> },
-      { path: "jobs", element: <Jobs /> },
-      { path: "description/:id", element: <JobDescription /> },
+      { 
+        path: "jobs", 
+        element: (
+          <ProtectedRoute>
+            <JobsPage />
+          </ProtectedRoute>
+        ) 
+      },
+      { 
+        path: "description/:id", 
+        element: <JobDescription /> 
+      },
       { 
         path: "settings", 
         element: (
@@ -72,14 +76,6 @@ const appRouter = createBrowserRouter([
         ),
       },
       {
-        path: "admin/companies/create",
-        element: (
-          <ProtectedRoute>
-            <CompanyCreate />
-          </ProtectedRoute>
-        ),
-      },
-      {
         path: "admin/companies/:id",
         element: (
           <ProtectedRoute>
@@ -88,26 +84,14 @@ const appRouter = createBrowserRouter([
         ),
       },
       {
-        path: "admin/jobs",
+        path: "admin/jobs/applicants/:jobId",
         element: (
           <ProtectedRoute>
-            <AdminJobs />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "admin/jobs/create",
-        element: (
-          <ProtectedRoute>
-            <PostJob />
-          </ProtectedRoute>
-        ),
-      },
-            {
-        path: "admin/jobs/:id/applicants",
-        element: (
-          <ProtectedRoute>
-            <Applicants />
+            <div className="container mx-auto p-4">
+              <h1 className="text-2xl font-bold mb-4">Job Applicants</h1>
+              {/* This will be handled by the Applicants component */}
+              <Applicants />
+            </div>
           </ProtectedRoute>
         ),
       },
@@ -141,7 +125,7 @@ const App = () => {
           try {
             // Try to refresh the token
             const response = await axios.post(
-              `${USER_API_END_POINT}/refresh-token`,
+              '/api/v1/user/refresh-token',
               {},
               { 
                 withCredentials: true,
@@ -159,7 +143,7 @@ const App = () => {
                 dispatch(setUser(JSON.parse(storedUser)));
               } else {
                 // Fetch user data if not in localStorage
-                const userResponse = await axios.get(`${USER_API_END_POINT}/me`, {
+                const userResponse = await apiClient.get('/api/v1/user/me', {
                   headers: { 
                     'Authorization': `Bearer ${response.data.token}`,
                     'Content-Type': 'application/json'
@@ -206,6 +190,7 @@ const App = () => {
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
       <RouterProvider router={appRouter} />
+      <DebugInfo />
     </ThemeProvider>
   );
 };

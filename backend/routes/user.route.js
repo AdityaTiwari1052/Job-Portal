@@ -1,7 +1,7 @@
 import express from "express";
 import { getUserById, googleLogin, login, logout, register, updateProfile } from "../controllers/user.controller.js";
 import isAuthenticated from "../middlewares/isAuthenticated.js";
-import  {multiUpload} from "../middlewares/multer.js";
+import { multiUpload, singleUpload } from "../middlewares/multer.js";
 import { forgotPassword ,toggleFollow,getNotifications,markAllNotificationsAsRead } from "../controllers/user.controller.js";
 import { sendOtpForPhoneVerification ,changePassword,updatePhoneNumber,verifyOtpforgotpassword } from "../controllers/user.controller.js";
 import { getGitHubClientId, handleGitHubCallback, getUserProfile, searchUsers, getMyProfile, getAllUsers } from "../controllers/user.controller.js";
@@ -9,7 +9,7 @@ import { getGitHubClientId, handleGitHubCallback, getUserProfile, searchUsers, g
  
 const router = express.Router();
 router.post("/google-login", googleLogin);
-router.route("/register").post(multiUpload,register);
+router.route("/register").post(singleUpload, register);
 router.route("/login").post(login);
 router.route("/logout").get(logout);
 

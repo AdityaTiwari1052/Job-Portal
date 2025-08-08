@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 
 // Constants
-import { USER_API_END_POINT } from "@/utils/constant";
+
 
 // 👤 Profile View
 const ProfileView = ({ user, isOwnProfile, handleEditClick }) => (
@@ -120,23 +120,14 @@ const Profile = ({ refreshPosts }) => {
         if (!urlUsername && reduxUser) {
           try {
             // Get current user's profile
-            const currentUserRes = await axios.get(
-              `${USER_API_END_POINT}/me`,
-              { withCredentials: true }
-            );
+            const currentUserRes = await apiClient.get("/api/v1/user/me");
             
             if (currentUserRes.data?.user) {
               setProfileUser(currentUserRes.data.user);
               
               // Fetch current user's posts
-              const postsRes = await axios.get(
-                `${USER_API_END_POINT}/posts/me`,
-                { withCredentials: true }
-              );
-              
-              if (postsRes.data?.posts) {
-                setUserPosts(postsRes.data.posts);
-              }
+              const postsRes = await apiClient.get("/api/v1/user/posts/me");
+              setUserPosts(postsRes.data.posts || []);
               return;
             }
           } catch (currentUserError) {
@@ -153,7 +144,7 @@ const Profile = ({ refreshPosts }) => {
         if (urlUsername) {
           // First try to search for the user
           try {
-            const searchRes = await apiClient.get(`/search/${urlUsername}`);
+            const searchRes = await apiClient.get(`/api/v1/user/profile/${urlUsername}`);
             
             if (searchRes.data?.users?.length > 0) {
               const foundUser = searchRes.data.users[0];
@@ -161,10 +152,8 @@ const Profile = ({ refreshPosts }) => {
               
               // Fetch user's posts
               try {
-                const postsRes = await apiClient.get(`/posts/user/${foundUser._id}`);
-                if (postsRes.data?.posts) {
-                  setUserPosts(postsRes.data.posts);
-                }
+                const postsRes = await apiClient.get(`/api/v1/posts/user/${foundUser._id}`);
+                setUserPosts(postsRes.data.posts || []);
               } catch (postsError) {
                 console.error("Error fetching user posts:", postsError);
                 setUserPosts([]);
@@ -194,87 +183,39 @@ const Profile = ({ refreshPosts }) => {
   }, [urlUsername, reduxUser]);
 
   const handleFollowToggle = async () => {
-    if (!reduxUser || !profileUser) {
-      console.warn("User not authenticated or profile not loaded");
-      return;
-    }
-    
+    if (!profileUser || !reduxUser) return;
+
+    const originalProfileUser = profileUser;
+    const originalReduxUser = reduxUser;
+
+    // Optimistically update UI
     try {
-      // Optimistically update the UI
-      const wasFollowing = isFollowing;
-      
-      setProfileUser(prev => ({
-        ...prev,
-        followers: wasFollowing
-          ? (prev.followers || []).filter(follower => 
-              (typeof follower === 'object' ? follower._id : follower) !== reduxUser._id
-            )
-          : [
-              ...(prev.followers || []), 
-              { 
-                _id: reduxUser._id, 
-                fullname: reduxUser.fullname, 
-                username: reduxUser.username, 
-                profile: { profilePhoto: reduxUser.profile?.profilePhoto } 
-              }
-            ]
-      }));
-      
-      // Make the API call
-      const res = await axios.post(
-        `${USER_API_END_POINT}/${profileUser._id}/follow`,
-        {},
-        { 
-          withCredentials: true,
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      
-      if (res.data.success) {
-        // Update the Redux store with the latest user data
-        if (res.data.updatedUser) {
-          dispatch(setUser(res.data.updatedUser));
-        }
-        
-        // Refresh the profile data
-        const profileRes = await axios.get(
-          `${USER_API_END_POINT}/profile/${urlUsername || profileUser.username || ''}`,
-          { withCredentials: true }
-        );
-        
-        if (profileRes.data?.success && profileRes.data.user) {
-          setProfileUser(profileRes.data.user);
-          // Refresh posts to update follow state in posts
-          if (typeof refreshPosts === 'function') {
-            refreshPosts();
-          }
-        }
-      }
+      // 1. Update local profile user state
+      setProfileUser(prevUser => {
+        if (!prevUser) return null;
+        const alreadyFollowing = prevUser.followers.some(f => (typeof f === 'object' ? f._id : f) === reduxUser._id);
+        const newFollowers = alreadyFollowing
+          ? prevUser.followers.filter(f => (typeof f === 'object' ? f._id : f) !== reduxUser._id)
+          : [...prevUser.followers, { _id: reduxUser._id }]; // Add placeholder
+        return { ...prevUser, followers: newFollowers };
+      });
+
+      // 2. Update global redux user state
+      const isFollowingInRedux = reduxUser.following.some(id => id === profileUser._id);
+      const newFollowing = isFollowingInRedux
+        ? reduxUser.following.filter(id => id !== profileUser._id)
+        : [...reduxUser.following, profileUser._id];
+      dispatch(setUser({ ...reduxUser, following: newFollowing }));
+
+      // 3. Make API call
+      await apiClient.post(`/api/v1/user/${profileUser._id}/follow`);
+
     } catch (error) {
-      console.error("Error toggling follow:", error);
-      
-      // Revert optimistic update on error
-      try {
-        const profileRes = await axios.get(
-          `${USER_API_END_POINT}/profile/${urlUsername || profileUser.username || ''}`,
-          { withCredentials: true }
-        );
-        if (profileRes.data?.success && profileRes.data.user) {
-          setProfileUser(profileRes.data.user);
-        }
-      } catch (refreshError) {
-        console.error("Error refreshing profile:", refreshError);
-      }
-      
-      if (error.response?.status === 401) {
-        if (window.confirm("Your session has expired. Would you like to log in again?")) {
-          navigate('/login', { state: { from: location.pathname } });
-        }
-      } else {
-        alert(error.response?.data?.message || "Failed to update follow status. Please try again.");
-      }
+      console.error("Failed to toggle follow:", error);
+      // Rollback on error
+      setProfileUser(originalProfileUser);
+      dispatch(setUser(originalReduxUser));
+      alert(error.response?.data?.message || "An error occurred. Please try again.");
     }
   };
 

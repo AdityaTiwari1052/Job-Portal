@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import axios from "axios";
+import apiClient from "@/utils/apiClient";
 import { useDispatch, useSelector } from "react-redux";
 import PostInput from "./PostInput";
 import Posts from "./Posts";
@@ -12,7 +12,7 @@ const Feed = () => {
 
   const refreshPosts = async () => {
     try {
-      const { data } = await axios.get("https://job-portal-v3b1.onrender.com/api/posts");
+            const { data } = await apiClient.get("/api/v1/posts");
       dispatch(setPosts(data.posts || []));
 
     } catch (error) {

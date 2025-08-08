@@ -5,7 +5,7 @@ import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { USER_API_END_POINT } from '@/utils/constant';
+import apiClient from '@/utils/apiClient';
 import { toast } from 'sonner';
 import { useDispatch, useSelector } from 'react-redux';
 import { setLoading, setUser } from '@/redux/authSlice';
@@ -57,7 +57,7 @@ const Signup = () => {
 
         try {
             dispatch(setLoading(true));
-            const res = await axios.post(`${USER_API_END_POINT}/register`, formData, {
+            const res = await apiClient.post('/api/v1/user/register', formData, {
                 headers: { 'Content-Type': "multipart/form-data" },
                 withCredentials: true,
             });
@@ -83,7 +83,7 @@ const Signup = () => {
     
           // Send the Google token to your backend for verification and login
           const res = await axios.post(
-            `${USER_API_END_POINT}/google-login`,
+            '/api/v1/user/google-login',
             { token: credential }, // Send token and role
             { withCredentials: true }
           );

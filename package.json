@@ -5,7 +5,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon backend/index.js",
+    "server": "node backend/index.js",
+    "backend:dev": "nodemon backend/index.js",
+    "frontend:dev": "npm run dev --prefix frontend",
+    "dev": "concurrently --names \"BACKEND,FRONTEND\" -c \"bgBlue.bold,bgGreen.bold\" \"npm:backend:dev\" \"npm:frontend:dev\"" ,
     "build": "npm install && npm install --prefix frontend && npm run build --prefix frontend",
     "start": "nodemon backend/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -35,6 +38,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.7",
     "@types/express": "^4.17.21",
-    "@types/jsonwebtoken": "^9.0.6"
+    "@types/jsonwebtoken": "^9.0.6",
+    "concurrently": "^9.2.0"
   }
 }

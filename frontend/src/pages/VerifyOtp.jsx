@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
-import { USER_API_END_POINT } from '@/utils/constant';
+import apiClient from '@/utils/apiClient';
 
 const VerifyOtp = () => {
     const [otp, setOtp] = useState('');
@@ -13,7 +13,7 @@ const VerifyOtp = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const res = await axios.post(`${USER_API_END_POINT}/verify-email`, { email: user.email, otp }, { withCredentials: true });
+            const res = await apiClient.post('/api/v1/user/verify-email', { email: user.email, otp });
             if (res.data.success) {
                 toast.success(res.data.message);
                 navigate('/');

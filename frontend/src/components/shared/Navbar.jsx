@@ -8,7 +8,6 @@ import MobileSidebar from '../MobileSidebar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import apiClient from '@/utils/apiClient';
-import { USER_API_END_POINT } from '@/utils/constant';
 import { toast } from 'sonner';
 import { useSelector, useDispatch } from 'react-redux';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -83,21 +82,10 @@ const Navbar = ({ onProfileClick }) => {
           {user && (<li><Link to="/network" className="flex flex-col items-center text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400"><Users className="w-6 h-6" /><span className="text-xs">My Network</span></Link></li>)}
           {user && (
             <li>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button className="flex flex-col items-center text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400">
-                    <Briefcase className="w-6 h-6" />
-                    <span className="text-xs">Jobs</span>
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent className="w-48 dark:bg-gray-800 dark:text-white">
-                  <div className="flex flex-col text-gray-600 dark:text-gray-200 space-y-2">
-                    <Link to="/jobs" className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400">All Jobs</Link>
-                    <Link to="/admin/jobs/create" className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400">Post a Job</Link>
-                    <Link to="/admin/companies" className="flex items-center gap-2 hover:text-blue-600 dark:hover:text-blue-400">Register Company</Link>
-                  </div>
-                </PopoverContent>
-              </Popover>
+              <Link to="/jobs" className="flex flex-col items-center text-gray-600 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400">
+                <Briefcase className="w-6 h-6" />
+                <span className="text-xs">Jobs</span>
+              </Link>
             </li>
           )}
         </ul>
@@ -263,7 +251,7 @@ const SearchDialog = ({ onClose }) => {
     if (e.key === 'Enter' && query.trim()) {
       setUsers([]);
       try {
-        const response = await axios.get(`${USER_API_END_POINT}/search/${query}`, {
+        const response = await apiClient.get(`/api/v1/user/search/${query}`, {
           withCredentials: true
         });
         if (response.data.users.length === 0) {

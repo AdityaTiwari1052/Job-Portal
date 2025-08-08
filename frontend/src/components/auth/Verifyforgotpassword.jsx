@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { USER_API_END_POINT } from "@/utils/constant";
+import apiClient from '@/utils/apiClient';
 import { toast } from "sonner";
 import axios from "axios";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "../ui/input-otp";
@@ -22,7 +22,7 @@ const Verifyforgotpassword = () => {
     setLoading(true);
     try {
       const response = await axios.post(
-        `${USER_API_END_POINT}/forgotpassword-verification`,
+        '/api/v1/user/forgotpassword-verification',
         { email, otp, newPassword }
       );
       toast.success(response.data.message);

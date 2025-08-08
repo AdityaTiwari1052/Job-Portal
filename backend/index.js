@@ -10,13 +10,19 @@ import postRoutes from "./routes/post.route.js";
 import applicationRoute from "./routes/application.route.js";
 import testEndpoint from "./test-endpoint.js";
 import path from "path";
+import { fileURLToPath } from 'url';
 
 
-dotenv.config({});
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({
+  path: path.resolve(__dirname, '../.env')
+});
 
 const app = express();
 
-// ✅ Middleware
+
 // Body parsers
 app.use(express.json({ verify: (req, res, buf) => {
     req.rawBody = buf.toString();
@@ -25,6 +31,57 @@ app.use(express.urlencoded({ extended: true, verify: (req, res, buf) => {
     req.rawBody = buf.toString();
 }}));
 app.use(cookieParser());
+
+// Request logging middleware
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5000',
+  'http://localhost:8000',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://job-portal-v3b1.onrender.com',
+  'https://your-frontend-domain.com' // Replace with your actual frontend domain
+];
+
+// Configure CORS with enhanced security headers
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
+  credentials: true, // Important for cookies
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'X-Requested-With', 
+    'Accept',
+    'Cross-Origin-Embedder-Policy',
+    'Cross-Origin-Resource-Policy',
+    'Cross-Origin-Opener-Policy'
+  ],
+  exposedHeaders: [
+    'set-cookie', 
+    'Authorization', 
+    'Set-Cookie',
+    'Cross-Origin-Embedder-Policy',
+    'Cross-Origin-Resource-Policy',
+    'Cross-Origin-Opener-Policy'
+  ],
+  maxAge: 86400, // 24 hours
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+// Apply CORS with options as one of the first middleware
+app.use(cors(corsOptions));
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -87,51 +144,6 @@ app.use((req, res, next) => {
   next();
 });
 
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
-  'https://job-portal-v3b1.onrender.com',
-  'https://your-frontend-domain.com' // Replace with your actual frontend domain
-];
-
-// Configure CORS with enhanced security headers
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
-    }
-    return callback(null, true);
-  },
-  credentials: true, // Important for cookies
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'X-Requested-With', 
-    'Accept',
-    'Cross-Origin-Embedder-Policy',
-    'Cross-Origin-Resource-Policy',
-    'Cross-Origin-Opener-Policy'
-  ],
-  exposedHeaders: [
-    'set-cookie', 
-    'Authorization', 
-    'Set-Cookie',
-    'Cross-Origin-Embedder-Policy',
-    'Cross-Origin-Resource-Policy',
-    'Cross-Origin-Opener-Policy'
-  ],
-  maxAge: 86400, // 24 hours
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-};
-
 // Apply CORS with options
 app.use(cors(corsOptions));
 
@@ -150,13 +162,10 @@ app.use((req, res, next) => {
 });
 
 // Add security headers
-// Duplicate COEP/CORP middleware removed – handled earlier with relaxed policy
-
-app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
 
-const PORT = process.env.PORT || 5000;
-const __dirname=path.resolve();
+const PORT = process.env.PORT || 8000;
+
 
 
 
@@ -165,16 +174,16 @@ app.use("/api/posts", postRoutes);
 app.use("/api/v1/company", companyRoute);
 app.use("/api/v1/job", jobRoute);
 app.use("/api/v1/application", applicationRoute);
-app.use("/auth", userRoute);
+
 
 // Test logging endpoint
 app.use('/test', testEndpoint);
 
 // Health check endpoint
-app.use(express.static(path.join(__dirname,"/frontend/dist")));
-app.get('*', (req,res)=>{
-  res.sendFile(path.resolve(__dirname,"frontend","dist","index.html"));
-})
+app.use(express.static(path.join(__dirname, "..", "frontend", "dist")));
+app.get("*", (req, res) => {
+  res.sendFile(path.resolve(__dirname, "..", "frontend", "dist", "index.html"));
+});
 
 // Start Server
 const startServer = async () => {

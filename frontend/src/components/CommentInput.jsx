@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import axios from 'axios';
+import apiClient from '@/utils/apiClient';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
@@ -23,10 +23,9 @@ const CommentInput = ({ postId }) => {
   if (!text.trim()) return;
 
   try {
-    const { data } = await axios.post(
-      `https://job-portal-v3b1.onrender.com/api/posts/${postId}/comments`,
-      { textMessage: text },
-      { withCredentials: true }
+    const { data } = await apiClient.post(
+      `/api/v1/posts/${postId}/comments`,
+      { textMessage: text }
     );
 
     toast.success("Message sent");

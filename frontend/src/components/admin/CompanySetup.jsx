@@ -5,15 +5,14 @@ import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Label } from '../ui/label'
 import { Input } from '../ui/input'
 import axios from 'axios'
-import { COMPANY_API_END_POINT } from '@/utils/constant'
+import apiClient from '@/utils/apiClient';
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useSelector } from 'react-redux'
 import useGetCompanyById from '@/hooks/useGetCompanyById'
 
-const CompanySetup = () => {
-    const params = useParams();
-    useGetCompanyById(params.id);
+const CompanySetup = ({ id, onComplete }) => {
+    useGetCompanyById(id);
     const [input, setInput] = useState({
         name: "",
         description: "",
@@ -21,9 +20,8 @@ const CompanySetup = () => {
         location: "",
         file: null
     });
-    const {singleCompany} = useSelector(store=>store.company);
+    const { singleCompany } = useSelector(store => store.company);
     const [loading, setLoading] = useState(false);
-    const navigate = useNavigate();
 
     const changeEventHandler = (e) => {
         setInput({ ...input, [e.target.name]: e.target.value });
@@ -46,7 +44,7 @@ const CompanySetup = () => {
         }
         try {
             setLoading(true);
-            const res = await axios.put(`${COMPANY_API_END_POINT}/update/${params.id}`, formData, {
+            const res = await apiClient.put(`/api/v1/company/update/${id}`, formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
                 },
@@ -54,7 +52,9 @@ const CompanySetup = () => {
             });
             if (res.data.success) {
                 toast.success(res.data.message);
-                navigate("/admin/companies");
+                if (onComplete) {
+                    onComplete();
+                }
             }
         } catch (error) {
             console.log(error);

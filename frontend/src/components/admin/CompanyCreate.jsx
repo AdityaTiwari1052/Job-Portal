@@ -5,31 +5,45 @@ import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { useNavigate } from 'react-router-dom'
 import axios from 'axios'
-import { COMPANY_API_END_POINT } from '@/utils/constant'
+import apiClient from '@/utils/apiClient';
 import { toast } from 'sonner'
 import { useDispatch } from 'react-redux'
 import { setSingleCompany } from '@/redux/companySlice'
 
-const CompanyCreate = () => {
-    const navigate = useNavigate();
-    const [companyName, setCompanyName] = useState();
+const CompanyCreate = ({ onCompanyCreated }) => {
+    const [companyName, setCompanyName] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
     const dispatch = useDispatch();
+    
     const registerNewCompany = async () => {
+        if (!companyName.trim()) {
+            toast.error('Please enter a company name');
+            return;
+        }
+        
         try {
-            const res = await axios.post(`${COMPANY_API_END_POINT}/register`, {companyName}, {
-                headers:{
-                    'Content-Type':'application/json'
-                },
-                withCredentials:true
-            });
-            if(res?.data?.success){
+            setIsLoading(true);
+            const res = await apiClient.post('/api/v1/company/register', 
+                { companyName }, 
+                {
+                    headers: { 'Content-Type': 'application/json' },
+                    withCredentials: true
+                }
+            );
+            
+            if (res?.data?.success) {
                 dispatch(setSingleCompany(res.data.company));
                 toast.success(res.data.message);
-                const companyId = res?.data?.company?._id;
-                navigate(`/admin/companies/${companyId}`);
+                const companyId = res.data.company?._id;
+                if (onCompanyCreated) {
+                    onCompanyCreated(companyId);
+                }
             }
         } catch (error) {
-            console.log(error);
+            console.error('Error creating company:', error);
+            toast.error(error.response?.data?.message || 'Failed to create company');
+        } finally {
+            setIsLoading(false);
         }
     }
     return (

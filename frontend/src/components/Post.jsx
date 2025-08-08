@@ -8,7 +8,7 @@ import { Badge } from "./ui/badge";
 import ReactTimeago from "react-timeago";
 import PostContent from "./PostContent";
 import SocialOptions from "./SocialOptions";
-import axios from "axios";
+import apiClient from "../utils/apiClient";
 
 const Post = ({ post, refreshPosts }) => {
   const { user } = useSelector((state) => state.auth);
@@ -27,11 +27,7 @@ const Post = ({ post, refreshPosts }) => {
 
   const handleFollowToggle = async () => {
     try {
-      const res = await axios.post(
-        `https://job-portal-v3b1.onrender.com/api/v1/user/${post.user._id}/follow`,
-        {},
-        { withCredentials: true }
-      );
+      const res = await apiClient.post(`/api/v1/user/${post.user._id}/follow`);
       setIsFollowing(res.data.following);
       toast.success(res.data.following ? "Followed ✅" : "Unfollowed 🚫");
       refreshPosts();
@@ -43,10 +39,7 @@ const Post = ({ post, refreshPosts }) => {
 
   const handleDelete = async (postId) => {
     try {
-      await axios.delete(`https://job-portal-v3b1.onrender.com/api/posts/${postId}`, {
-        withCredentials: true,
-      });
-
+      await apiClient.delete(`/api/v1/posts/${postId}`);
       toast.success("Post deleted successfully ✅");
       refreshPosts();
     } catch (error) {

@@ -86,7 +86,7 @@ export const googleLogin = async (req, res) => {
             fullname: user.fullname,
             email: user.email,
             profilePhoto: user.profilePhoto,
-            role: user.role,
+            // Role field removed
             isEmailVerified: user.isEmailVerified
         };
         
@@ -154,7 +154,7 @@ export const login = async (req, res) => {
             fullname: user.fullname,
             email: user.email,
             phoneNumber: user.phoneNumber,
-            role: user.role,
+            // Role field removed
             profile: user.profile
         };
         
@@ -294,7 +294,7 @@ const processLogin = async (req, res) => {
             fullname: user.fullname,
             email: user.email,
             phoneNumber: user.phoneNumber,
-            role: user.role,
+            // Role field removed
             profile: user.profile,
             isEmailVerified: user.isEmailVerified
         };
@@ -335,33 +335,40 @@ export const logout = async (req, res) => {
 // Register
 export const register = async (req, res) => {
     try {
-        const { fullname, email, phoneNumber, password, role } = req.body;
+        // For form-data, fields are available directly on req.body
+        const { fullname, username, email, phoneNumber, password } = req.body;
         
-        if (!fullname || !email || !phoneNumber || !password || !role) {
+        // Validate required fields
+        if (!fullname || !username || !email || !phoneNumber || !password) {
             return res.status(400).json({
-                message: "Something is missing",
+                message: "All fields are required: fullname, username, email, phoneNumber, password",
                 success: false
             });
         }
         
-        const user = await User.findOne({ email });
-        if (user) {
+        // Check if email already exists
+        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
+        if (existingUser) {
             return res.status(400).json({
-                message: 'User already exist with this email.',
+                message: existingUser.email === email 
+                    ? 'User already exists with this email.' 
+                    : 'Username is already taken.',
                 success: false,
             });
         }
         
+        // Hash the password
         const hashedPassword = await bcrypt.hash(password, 10);
         
         // Create new user
         const newUser = await User.create({
             fullname,
+            username,
             email,
             phoneNumber,
             password: hashedPassword,
-            role,
-            isEmailVerified: false // Email verification will be handled separately
+            isEmailVerified: false, // Email verification will be handled separately
+            profilePhoto: req.file ? req.file.path : undefined // Save file path if uploaded
         });
         
         // Generate token for the new user
@@ -376,7 +383,7 @@ export const register = async (req, res) => {
             fullname: newUser.fullname,
             email: newUser.email,
             phoneNumber: newUser.phoneNumber,
-            role: newUser.role,
+            // Role field removed
             isEmailVerified: newUser.isEmailVerified
         };
         
@@ -542,7 +549,7 @@ export const updateProfile = async (req, res) => {
             fullname: user.fullname,
             email: user.email,
             phoneNumber: user.phoneNumber,
-            role: user.role,
+            // Role field removed
             profile: user.profile
         };
         
@@ -824,7 +831,7 @@ export const toggleFollow = async (req, res) => {
             });
         }
         
-        const isFollowing = follower.following.includes(followingId);
+        const isFollowing = follower.following.some(id => id.equals(followingId));
         
         if (isFollowing) {
             // Unfollow
@@ -996,7 +1003,9 @@ export const getUserProfile = async (req, res) => {
 // Get All Users
 export const getAllUsers = async (req, res) => {
     try {
-        const users = await User.find().select('-password');
+        // Exclude the current user from the list of all users
+        const loggedInUserId = req.user._id;
+        const users = await User.find({ _id: { $ne: loggedInUserId } }).select('-password');
         
         return res.status(200).json({
             users,
@@ -1014,9 +1023,12 @@ export const getAllUsers = async (req, res) => {
 // Get My Profile
 export const getMyProfile = async (req, res) => {
     try {
-        const userId = req.id;
-        const user = await User.findById(userId).select('-password');
-        
+        const userId = req.user._id; // Corrected: use req.user._id
+        const user = await User.findById(userId)
+            .select('-password')
+            .populate('following', 'profile.fullname username profile.profilePhoto') // Populate following details
+            .populate('followers', 'profile.fullname username profile.profilePhoto'); // Populate followers details
+
         if (!user) {
             return res.status(404).json({
                 message: "User not found",

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
-import { USER_API_END_POINT } from "@/utils/constant";
+import apiClient from '@/utils/apiClient';
 import { toast } from "sonner";
 import axios from "axios";
 
@@ -16,7 +16,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await axios.post(`${USER_API_END_POINT}/forgot-password`, { email });
+      const res = await apiClient.post('/api/v1/user/forgot-password', { email });
       
         toast.success(res.data.message);
         navigate("/verifyforgot-password", { state: { email } });

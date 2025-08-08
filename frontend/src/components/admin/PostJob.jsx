@@ -5,12 +5,12 @@ import { Button } from '../ui/button'
 import { useSelector } from 'react-redux'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
 import axios from 'axios'
-import { JOB_API_END_POINT } from '@/utils/constant'
+import apiClient from '@/utils/apiClient';
 import { toast } from 'sonner'
 import { useNavigate } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 
-const topCompanies = ["Microsoft", "Google", "HCL", "Wipro", "TCS", "Accenture"];
+// We'll only use registered companies with valid IDs
 
 const PostJob = () => {
     const [input, setInput] = useState({
@@ -34,28 +34,45 @@ const PostJob = () => {
     };
 
     const selectChangeHandler = (value) => {
-        const selectedCompany = companies.find((company)=> company.name.toLowerCase() === value);
-        setInput({...input, companyId:selectedCompany._id});
+        // This handler is now used for both dropdowns and always receives the company ID
+        setInput({...input, companyId: value});
     };
 
     const submitHandler = async (e) => {
         e.preventDefault();
+        
+        // Validate that a company is selected
+        if (!input.companyId) {
+            toast.error("Please select a company");
+            return;
+        }
+
         try {
             setLoading(true);
             
-            const res = await axios.post(`${JOB_API_END_POINT}/post`, input,{
-                headers:{
-                    'Content-Type':'application/json'
+            // Prepare the data to send
+            const jobData = {
+                ...input,
+                salary: Number(input.salary),
+                position: Number(input.position)
+            };
+            
+            const res = await apiClient.post('/api/v1/job/post', jobData, {
+                headers: {
+                    'Content-Type': 'application/json'
                 },
-                withCredentials:true
+                withCredentials: true
             });
-            if(res.data.success){
+            
+            if (res.data.success) {
                 toast.success(res.data.message);
                 navigate("/admin/jobs");
             }
         } catch (error) {
-            toast.error(error.response.data.message);
-        } finally{
+            console.error('Error posting job:', error);
+            const errorMessage = error.response?.data?.message || 'Failed to post job';
+            toast.error(errorMessage);
+        } finally {
             setLoading(false);
         }
     }
@@ -145,48 +162,38 @@ const PostJob = () => {
                         />
                     </div>
                                         <div>
-                        <Label>Company</Label>
-                        <Select onValueChange={(value) => {
-                            if (value !== 'other') {
-                                setInput({ ...input, companyId: value });
-                            }
-                            setCompanySource(value);
-                        }}>
-                            <SelectTrigger className="w-full my-1">
-                                <SelectValue placeholder="Select a company source" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectItem value="other">Other</SelectItem>
-                                    {
-                                        topCompanies.map((company) => (
-                                            <SelectItem key={company} value={company}>{company}</SelectItem>
-                                        ))
-                                    }
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    {
-                        companySource === 'other' && companies.length > 0 && (
-                            <Select onValueChange={selectChangeHandler}>
+                        <Label>Company *</Label>
+                        {companies.length > 0 ? (
+                            <Select 
+                                value={input.companyId}
+                                onValueChange={(value) => {
+                                    setInput({...input, companyId: value});
+                                }}
+                                required
+                            >
                                 <SelectTrigger className="w-full my-1">
-                                    <SelectValue placeholder="Select a registered company" />
+                                    <SelectValue placeholder="Select a company" />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectGroup>
-                                        {
-                                            companies.map((company) => {
-                                                return (
-                                                    <SelectItem key={company._id} value={company?.name?.toLowerCase()}>{company.name}</SelectItem>
-                                                )
-                                            })
-                                        }
+                                        {companies.map((company) => (
+                                            <SelectItem 
+                                                key={company._id} 
+                                                value={company._id}
+                                            >
+                                                {company.name}
+                                            </SelectItem>
+                                        ))}
                                     </SelectGroup>
                                 </SelectContent>
                             </Select>
-                        )
-                    }
+                        ) : (
+                            <div className="p-2 text-sm text-red-600">
+                                No companies found. Please register a company first.
+                            </div>
+                        )}
+                    </div>
+
                 </div> 
                 {
                     loading ? <Button className="w-full my-4"> <Loader2 className='mr-2 h-4 w-4 animate-spin' /> Please wait </Button> : <Button type="submit" className="w-full my-4">Post New Job</Button>

@@ -12,7 +12,7 @@ import { Images } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDispatch, useSelector } from "react-redux";
-import axios from "axios";
+import apiClient from "@/utils/apiClient";
 import { addPost } from "@/redux/postSlice"; // ✅ Import post action
 
 export function PostDialog({ setOpen, open, refreshPosts }) {
@@ -41,13 +41,7 @@ export function PostDialog({ setOpen, open, refreshPosts }) {
       formData.append("description", inputText);
       if (selectedFile) formData.append("image", selectedFile);
 
-      const { data } = await axios.post("https://job-portal-v3b1.onrender.com/api/posts", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-        withCredentials: true,
-      });
+      const { data } = await apiClient.post("/api/v1/posts", formData);
 
       dispatch(addPost(data.post)); // ✅ Dispatch new post
       toast.success("Post created!");

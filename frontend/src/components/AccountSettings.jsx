@@ -4,7 +4,7 @@ import { Label } from "../components/ui/label";
 import { Button } from "../components/ui/button";
 import { toast } from "sonner";
 import axios from "axios";
-import { USER_API_END_POINT } from "@/utils/constant";
+import apiClient from '@/utils/apiClient';
 import { useDispatch, useSelector } from "react-redux";
 import { setUser } from "@/redux/authSlice";
 import { Loader2 } from "lucide-react";
@@ -36,7 +36,7 @@ const AccountSettings = () => {
     if (!phone) return toast.error("Phone number is required.");
     try {
       setLoadingOtp(true);
-      const res = await axios.post(`${USER_API_END_POINT}/send-otp`, { phoneNumber: phone }, { withCredentials: true });
+      const res = await apiClient.post('/api/v1/user/send-otp', { phoneNumber: phone });
       toast.success("OTP sent successfully!");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to send OTP.");
@@ -50,7 +50,7 @@ const AccountSettings = () => {
     if (!otp) return toast.error("OTP is required.");
     try {
       setLoadingPhone(true);
-      const res = await axios.put(`${USER_API_END_POINT}/update-phone`, { phoneNumber: phone, otp }, { withCredentials: true });
+      const res = await apiClient.put('/api/v1/user/update-phone', { phoneNumber: phone, otp });
       dispatch(setUser({ ...user, phoneNumber: phone }));
       toast.success("Phone number updated successfully!");
     } catch (error) {
@@ -68,7 +68,7 @@ const AccountSettings = () => {
     try {
       setLoadingPassword(true);
       const res = await axios.put(
-        `${USER_API_END_POINT}/change-password`,
+        '/api/v1/user/change-password',
         { currentPassword, newPassword },
         { withCredentials: true }
       );

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { USER_API_END_POINT } from '@/utils/constant';
+import apiClient from '@/utils/apiClient';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 
@@ -12,11 +12,12 @@ const Network = () => {
   useEffect(() => {
     const fetchNetwork = async () => {
       try {
-        const res = await axios.get(`${USER_API_END_POINT}/me`, {
+        const res = await apiClient.get('/api/v1/user/me', {
           withCredentials: true,
         });
-        if (res.data.following) {
-          setNetwork(res.data.following);
+        // The user object, which contains the populated 'following' array, is nested under 'user'
+        if (res.data.user && res.data.user.following) {
+          setNetwork(res.data.user.following);
         }
       } catch (error) {
         console.error("Error fetching network:", error);
@@ -25,10 +26,11 @@ const Network = () => {
 
         const fetchRecommendedUsers = async () => {
       try {
-        const res = await axios.get(`${USER_API_END_POINT}/all`, {
+        const res = await apiClient.get('/api/v1/user/all', {
           withCredentials: true,
         });
-        setRecommendedUsers(res.data);
+        // The array of users is nested under the 'users' key
+        setRecommendedUsers(res.data.users);
       } catch (error) {
         console.error("Error fetching recommended users:", error);
       }

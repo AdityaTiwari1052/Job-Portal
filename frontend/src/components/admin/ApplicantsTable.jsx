@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
 import { useSelector, useDispatch } from 'react-redux';
 import { toast } from 'sonner';
-import { APPLICATION_API_END_POINT } from '@/utils/constant';
+import apiClient from '@/utils/apiClient';
 import axios from 'axios';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import {Avatar} from "../../components/ui/avatar";
@@ -16,7 +16,7 @@ const ApplicantsTable = () => {
 
   const fetchAllApplicants = async () => {
     try {
-      const res = await axios.get(`${APPLICATION_API_END_POINT}/${applicants?._id}/applicants`, { withCredentials: true });
+      const res = await apiClient.get(`/api/v1/application/${applicants?._id}/applicants`, { withCredentials: true });
       dispatch(setAllApplicants(res.data.job));
     } catch (error) {
       console.log(error);
@@ -25,8 +25,7 @@ const ApplicantsTable = () => {
 
   const statusHandler = async (status, id) => {
     try {
-      axios.defaults.withCredentials = true;
-      const res = await axios.post(`${APPLICATION_API_END_POINT}/status/${id}/update`, { status });
+      const res = await apiClient.post(`/api/v1/application/update-status/${id}`, { status });
       if (res.data.success) {
         toast.success(res.data.message);
         fetchAllApplicants();
