@@ -1,12 +1,20 @@
 import React from "react";
 import { Button } from "./ui/button";
-import { Bookmark, Briefcase, DollarSign } from "lucide-react";
+import { Bookmark, Briefcase, DollarSign, Users } from "lucide-react";
 import { Avatar, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 
-const Job = ({ job, onViewDetails }) => {
+const Job = ({ 
+    job, 
+    onViewDetails, 
+    onViewApplicants, 
+    showViewApplicants = false,
+    showApplicantCount = false,
+    isSelected = false,
+    onClick
+}) => {
     const navigate = useNavigate();
     const { user } = useSelector(store => store.auth);
 
@@ -30,11 +38,27 @@ const Job = ({ job, onViewDetails }) => {
         return <p className="text-center text-gray-500">Job data unavailable</p>;
     }
 
+    const handleClick = (e) => {
+        e?.stopPropagation();
+        if (onClick) {
+            onClick();
+        } else if (showViewApplicants && onViewApplicants) {
+            onViewApplicants();
+        } else if (onViewDetails) {
+            onViewDetails();
+        } else {
+            navigate(`/description/${job?._id}`);
+        }
+    };
+
     return (
-        <div className="p-5 rounded-md shadow-md bg-white border border-gray-200 transition-all duration-200 hover:shadow-lg h-full flex flex-col">
-            {/* Main content container */}
+        <div 
+            className={`p-5 rounded-md shadow-sm bg-white border transition-all duration-200 hover:shadow-md h-full flex flex-col cursor-pointer ${
+                isSelected ? 'ring-2 ring-blue-500' : 'border-gray-200'
+            }`}
+            onClick={handleClick}
+        >
             <div className="flex flex-col h-full">
-                {/* Company and Logo */}
                 <div className="flex items-start gap-4 mb-4">
                     <Avatar className="w-14 h-14 flex-shrink-0 border border-gray-200">
                         <AvatarImage 
@@ -50,14 +74,12 @@ const Job = ({ job, onViewDetails }) => {
                     </div>
                 </div>
                 
-                {/* Job Description */}
                 <div className="flex-grow mb-4">
                     <p className="text-gray-600 text-sm line-clamp-3">
                         {job?.description || "No description provided."}
                     </p>
                 </div>
                 
-                {/* Job Details */}
                 <div className="grid grid-cols-2 gap-2 mb-4">
                     <div className="flex items-center gap-2 text-sm">
                         <Briefcase className="w-4 h-4 text-gray-400" />
@@ -67,18 +89,38 @@ const Job = ({ job, onViewDetails }) => {
                         <DollarSign className="w-4 h-4 text-gray-400" />
                         <span className="text-gray-600">{job?.salary ? `${job.salary} LPA` : 'Salary not specified'}</span>
                     </div>
+                    {showApplicantCount && job?.applicantsCount !== undefined && (
+                        <div className="flex items-center gap-2 text-sm">
+                            <Users className="w-4 h-4 text-gray-400" />
+                            <span className="text-gray-600">{job.applicantsCount} Applicants</span>
+                        </div>
+                    )}
                 </div>
 
-                {/* Action Buttons */}
                 <div className="mt-auto pt-4 border-t border-gray-100">
-                    <Button 
-                        onClick={onViewDetails || (() => navigate(`/description/${job?._id}`))}
-                        variant="outline"
-                        size="sm"
-                        className="w-full mb-3"
-                    >
-                        View Details
-                    </Button>
+                    {showViewApplicants ? (
+                        <Button 
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onViewApplicants?.();
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="w-full bg-blue-50 text-blue-700 hover:bg-blue-100 hover:text-blue-800"
+                        >
+                            <Users className="w-4 h-4 mr-2" />
+                            View Applicants
+                        </Button>
+                    ) : (
+                        <Button 
+                            onClick={handleClick}
+                            variant="outline"
+                            size="sm"
+                            className="w-full"
+                        >
+                            View Details
+                        </Button>
+                    )}
                     <div className="flex justify-between items-center text-xs text-gray-500">
                         <span>
                             {daysAgoFunction(job?.createdAt) === 0

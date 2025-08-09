@@ -148,6 +148,25 @@ export const getCompanyById = async (req, res) => {
         console.log(error);
     }
 }
+
+// Get companies by user ID
+export const getUserCompanies = async (req, res) => {
+    try {
+        const companies = await Company.find({ userId: req.user._id });
+        return res.status(200).json({
+            success: true,
+            companies
+        });
+    } catch (error) {
+        console.error('Error in getUserCompanies:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching user companies',
+            error: error.message
+        });
+    }
+};
+
 export const updateCompany = async (req, res) => {
     try {
         const { name, description, website, location } = req.body;

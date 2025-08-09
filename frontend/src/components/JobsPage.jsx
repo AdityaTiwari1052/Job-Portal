@@ -4,9 +4,10 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
-import { Pencil, Briefcase, Building2, X, CheckCircle2, XCircle, Users, Eye, ChevronLeft, Loader2, Bookmark, DollarSign, Clock, MapPin, AlertCircle } from 'lucide-react';
+import { Pencil, Briefcase, Building2, X, CheckCircle2, XCircle, Users, Eye, ChevronLeft, Loader2, Bookmark, DollarSign, Clock, MapPin, AlertCircle, Plus, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/utils/apiClient';
 import Job from './Job';
@@ -45,6 +46,8 @@ const JobsPage = () => {
     const [showApplicants, setShowApplicants] = useState(false);
     const [currentApplicants, setCurrentApplicants] = useState([]);
     const [isLoadingAppliedJobs, setIsLoadingAppliedJobs] = useState(false);
+    const [userCompanies, setUserCompanies] = useState([]);
+    const [isLoadingCompanies, setIsLoadingCompanies] = useState(false);
     
     const { allJobs = [] } = useSelector(store => store.job);
     const { companies = [] } = useSelector(store => store.company);
@@ -58,6 +61,28 @@ const JobsPage = () => {
     useEffect(() => {
         console.log('Applied jobs updated:', allAppliedJobs);
     }, [allAppliedJobs]);
+
+    // Fetch user's companies when component mounts
+    useEffect(() => {
+        const fetchUserCompanies = async () => {
+            if (user?._id) {
+                setIsLoadingCompanies(true);
+                try {
+                    const res = await apiClient.get('/company/get', { withCredentials: true });
+                    if (res.data?.success) {
+                        setUserCompanies(res.data.companies || []);
+                    }
+                } catch (error) {
+                    console.error('Error fetching user companies:', error);
+                    toast.error('Failed to load your companies');
+                } finally {
+                    setIsLoadingCompanies(false);
+                }
+            }
+        };
+        
+        fetchUserCompanies();
+    }, [user?._id]);
 
     // Handle tab change
     const handleTabChange = (tab) => {
@@ -131,7 +156,11 @@ const JobsPage = () => {
                         message: error.message,
                         response: error.response?.data,
                         status: error.response?.status,
-                        config: error.config
+                        config: {
+                            url: error.config?.url,
+                            method: error.config?.method,
+                            headers: error.config?.headers
+                        }
                     });
                     toast.error(error.response?.data?.message || 'Failed to load your job applications');
                 } finally {
@@ -458,522 +487,321 @@ const JobsPage = () => {
         setShowCompanyForm(false);
         toast.success('Company setup completed successfully!');
         // Refresh the companies list
-        apiClient.get('/company/get');
+        apiClient.get('/company/get')
+            .then(res => {
+                if (res.data?.success) {
+                    const companies = res.data.companies || [];
+                    setUserCompanies(companies);
+                    
+                    // If there's only one company, select it automatically
+                    if (companies.length === 1) {
+                        setJobForm(prev => ({
+                            ...prev,
+                            companyId: companies[0]._id
+                        }));
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing companies:', error);
+                toast.error('Failed to refresh companies list');
+            });
     };
 
     return (
         <div className="min-h-screen bg-gray-50">
             <style>{scrollbarStyles}</style>
-            <div className="container mx-auto px-4 py-8">
-                <div className="flex flex-col lg:flex-row gap-8">
-                    {/* Left Sidebar - Always visible on desktop, hidden on mobile when job is selected */}
-                    <div className={`${selectedJobId ? 'hidden lg:block lg:w-1/4' : 'w-full lg:w-1/4'} flex-shrink-0 space-y-4`}>
-                    <Card className="border-0 shadow-sm">
-                        <CardContent className="p-4 space-y-4">
-                            {/* My Jobs Section */}
-                            <div className="space-y-2">
-                                <Button 
-                                    variant={activeTab === 'my-jobs' ? 'default' : 'outline'} 
-                                    className="w-full justify-start gap-2 h-12 text-base font-medium"
-                                    onClick={() => handleTabChange('my-jobs')}
-                                >
-                                    <Bookmark className="w-5 h-5" />
-                                    My Jobs
-                                </Button>
-                            </div>
-
-                            <div className="space-y-2">
-                                <Button 
-                                    variant={activeTab === 'post' ? 'default' : 'outline'} 
-                                    className="w-full justify-start gap-2 h-12 text-base font-medium"
-                                    onClick={() => setActiveTab('post')}
-                                >
-                                    <Pencil className="w-5 h-5" />
-                                    Post Job for Free
-                                </Button>
-                                <p className="text-xs text-muted-foreground text-center">
-                                    Reach thousands of job seekers
-                                </p>
-                            </div>
-                            
-                            <div className="border-t pt-4">
-                                <h3 className="flex items-center gap-2 text-sm font-medium text-muted-foreground mb-3">
-                                    <Briefcase className="w-4 h-4" />
-                                    Manage Jobs
-                                </h3>
-                                <Button 
-                                    variant={activeTab === 'all' ? 'secondary' : 'ghost'} 
-                                    className="w-full justify-start"
-                                    onClick={() => setActiveTab('all')}
-                                >
-                                    All Jobs
-                                </Button>
-                                
-                                {/* Posted Jobs Section */}
-                                <div className="mt-4">
-                                    <h3 className="text-sm font-medium px-4 py-2 text-muted-foreground">
-                                        <Briefcase className="inline-block w-4 h-4 mr-2" />
-                                        Posted Jobs
-                                    </h3>
-                                    <Button 
-                                        variant={activeTab === 'your-jobs' ? 'secondary' : 'ghost'} 
-                                        className="w-full justify-start"
-                                        onClick={() => handleTabChange('your-jobs')}
-                                    >
-                                        <Briefcase className="w-4 h-4 mr-2" />
-                                        View Posted Jobs
-                                    </Button>
-                                </div>
-                                
-                                {/* Register Company Section */}
-                                <div className="mt-4">
-                                    <h3 className="text-sm font-medium px-4 py-2 text-muted-foreground">
-                                        <Building2 className="inline-block w-4 h-4 mr-2" />
-                                        Company
-                                    </h3>
-                                    <Button 
-                                        variant="outline"
-                                        className="w-full justify-start"
-                                        onClick={handleRegisterCompany}
-                                        disabled={isPosting}
-                                    >
-                                        {isPosting ? (
-                                            <>
-                                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                                Registering...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Building2 className="w-4 h-4 mr-2" />
-                                                Register Company
-                                            </>
-                                        )}
-                                    </Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    {activeTab === 'all' && (
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Filters</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div>
-                                    <Label>Job Type</Label>
-                                    <Select 
-                                        value={filters.jobType}
-                                        onValueChange={(value) => setFilters({...filters, jobType: value})}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="All Types" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="all">All Types</SelectItem>
-                                            <SelectItem value="Full-time">Full-time</SelectItem>
-                                            <SelectItem value="Part-time">Part-time</SelectItem>
-                                            <SelectItem value="Contract">Contract</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div>
-                                    <Label>Location</Label>
-                                    <Input 
-                                        placeholder="Filter by location"
-                                        value={filters.location}
-                                        onChange={(e) => setFilters({...filters, location: e.target.value})}
-                                    />
-                                </div>
-                                <Button 
-                                    variant="outline" 
-                                    className="w-full"
-                                    onClick={() => setFilters({ jobType: 'all', location: '' })}
-                                >
-                                    Clear Filters
-                                </Button>
-                            </CardContent>
-                        </Card>
-                    )}
+            <div className="container mx-auto px-4 py-4 sm:py-8">
+                {/* Mobile Tabs - Horizontal, only on mobile */}
+                <div className="lg:hidden mb-4 overflow-x-auto pb-2">
+                    <div className="flex space-x-2 w-max min-w-full">
+                        <Button 
+                            variant={activeTab === 'my-jobs' ? 'default' : 'outline'} 
+                            className="whitespace-nowrap h-10 text-sm px-3"
+                            onClick={() => handleTabChange('my-jobs')}
+                        >
+                            <Bookmark className="w-4 h-4 mr-1" />
+                            My Jobs
+                        </Button>
+                        <Button 
+                            variant={activeTab === 'all' ? 'default' : 'outline'} 
+                            className="whitespace-nowrap h-10 text-sm px-3"
+                            onClick={() => handleTabChange('all')}
+                        >
+                            All Jobs
+                        </Button>
+                        <Button 
+                            variant={activeTab === 'your-jobs' ? 'default' : 'outline'} 
+                            className="whitespace-nowrap h-10 text-sm px-3"
+                            onClick={() => handleTabChange('your-jobs')}
+                        >
+                            Posted Jobs
+                        </Button>
+                        <Button 
+                            variant={activeTab === 'post' ? 'default' : 'outline'} 
+                            className="whitespace-nowrap h-10 text-sm px-3"
+                            onClick={() => handleTabChange('post')}
+                        >
+                            <Pencil className="w-4 h-4 mr-1" />
+                            Post Job
+                        </Button>
+                    </div>
                 </div>
 
-                    {/* Main Content - Shows job list, job details, post job form, or company registration */}
-                    <div className={`w-full ${(selectedJobId || showCompanyForm || activeTab === 'post') ? 'lg:w-3/4' : 'lg:w-2/3'}`}>
-                        {activeTab === 'post' ? (
-                            <div className="bg-white rounded-lg shadow-sm border p-6">
-                                <div className="flex justify-between items-center mb-6">
-                                    <Button 
-                                        variant="outline" 
-                                        onClick={() => setActiveTab('all')}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <ChevronLeft className="w-4 h-4" /> Back to Jobs
-                                    </Button>
-                                    <h1 className="text-2xl font-bold">Post a New Job</h1>
-                                    <div className="w-10"></div> {/* For alignment */}
-                                </div>
-                                <PostJob onSuccess={() => setActiveTab('your-jobs')} />
-                            </div>
-                        ) : showCompanyForm ? (
-                            <div className="bg-white rounded-lg shadow-sm border p-6">
-                                <div className="flex justify-between items-center mb-6">
-                                    <Button 
-                                        variant="outline" 
-                                        onClick={() => setShowCompanyForm(false)}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <ChevronLeft className="w-4 h-4" /> Back to Jobs
-                                    </Button>
-                                    <h1 className="text-2xl font-bold">Register Your Company</h1>
-                                    <div className="w-10"></div> {/* For alignment */}
-                                </div>
-                                <CompanySetup 
-                                    onComplete={handleCompanySetupComplete} 
-                                    showBackButton={false}
-                                />
-                            </div>
-                        ) : selectedJobId ? (
-                            <div className="bg-white rounded-lg shadow-sm border p-6">
-                                <div className="flex justify-between items-center mb-6">
-                                    <Button 
-                                        variant="outline" 
-                                        onClick={() => {
-                                            setSelectedJobId(null);
-                                            setSelectedJobData(null);
-                                        }}
-                                        className="flex items-center gap-2"
-                                    >
-                                        <ChevronLeft className="w-4 h-4" /> Back to Jobs
-                                    </Button>
-                                    <h1 className="text-2xl font-bold">Job Details</h1>
-                                    <div className="w-10"></div> {/* For alignment */}
-                                </div>
-                                <JobDescription 
-                                    job={selectedJobData} 
-                                    hideApplyButton={shouldHideApplyButton}
-                                />
-                            </div>
-                        ) : (
-                            !showApplicants && (
-                                <div className="space-y-4">
-                                    <div className="flex flex-col gap-4 w-full px-4">
-                                        {activeTab === 'your-jobs' ? (
-                                            userJobs.length > 0 ? (
-                                                userJobs.map((job) => (
-                                                    <div key={job._id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all duration-200 bg-white flex flex-col w-full">
-                                                        <div className="flex-grow">
-                                                            <div className="flex items-start justify-between">
-                                                                <div>
-                                                                    <h3 className="font-bold text-lg text-gray-800">{job.title || 'Untitled Position'}</h3>
-                                                                    <p className="text-sm text-blue-600 font-medium mt-1">{job.company?.name || 'No Company'}</p>
-                                                                    <div className="flex items-center gap-2 mt-2">
-                                                                        <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">{job.jobType || 'Full-time'}</span>
-                                                                        <span className="text-sm text-gray-500">•</span>
-                                                                        <span className="text-sm text-gray-600">{job.location || 'Location not specified'}</span>
-                                                                    </div>
-                                                                    <div className="mt-3 flex items-center">
-                                                                        <Briefcase className="h-4 w-4 text-gray-400 mr-1" />
-                                                                        <span className="text-sm text-gray-600">
-                                                                            {job.applications?.length || 0} {job.applications?.length === 1 ? 'applicant' : 'applicants'}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                                <div className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-0.5 rounded-full">
-                                                                    {job.status || 'Active'}
-                                                                </div>
-                                                            </div>
-                                                            
-                                                            <p className="text-sm text-gray-600 mt-3 line-clamp-2">
-                                                                {job.description || 'No description provided.'}
-                                                            </p>
-                                                        </div>
-                                                        
-                                                        <div className="flex flex-wrap gap-3 mt-5 pt-4 border-t border-gray-100">
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="sm"
-                                                                className="flex-1 min-w-[140px] bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 hover:text-blue-800 font-medium"
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    console.log('Viewing applicants for job:', job._id);
-                                                                    fetchApplicants(job._id, job);
-                                                                }}
-                                                            >
-                                                                <Users className="h-4 w-4 mr-2" />
-                                                                {job.applications?.length > 0 ? (
-                                                                    <span>View {job.applications.length} {job.applications.length === 1 ? 'Applicant' : 'Applicants'}</span>
-                                                                ) : (
-                                                                    <span>No Applicants</span>
-                                                                )}
-                                                            </Button>
-                                                            <Button 
-                                                                variant="default" 
-                                                                size="sm"
-                                                                className="flex-1 min-w-[120px]"
-                                                                onClick={(e) => {
-                                                                    e.preventDefault();
-                                                                    e.stopPropagation();
-                                                                    handleJobSelect(job);
-                                                                }}
-                                                            >
-                                                                <Eye className="h-4 w-4 mr-2" />
-                                                                View Details
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                ))
+                <div className="flex flex-col lg:flex-row gap-6">
+                    {/* Desktop Vertical Tabs - Hidden on mobile */}
+                    <div className="hidden lg:block w-56 flex-shrink-0">
+                        <div className="space-y-1">
+                            {[
+                                { id: 'all', label: 'All Jobs', icon: null },
+                                { id: 'your-jobs', label: 'Posted Jobs', icon: <Briefcase className="w-4 h-4 mr-2" /> },
+                                { id: 'my-jobs', label: 'My Applications', icon: <Bookmark className="w-4 h-4 mr-2" /> },
+                                { id: 'post', label: 'Post a Job', icon: <Pencil className="w-4 h-4 mr-2" /> },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => handleTabChange(tab.id)}
+                                    className={`w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
+                                        activeTab === tab.id
+                                            ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-500'
+                                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                                    }`}
+                                >
+                                    {tab.icon}
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="flex-1">
+                        {(activeTab === 'all' || activeTab === 'your-jobs') && (
+                            <div className="bg-white rounded-lg shadow-sm border p-4 sm:p-6">
+                                {activeTab === 'all' && (
+                                    <div className="space-y-4">
+                                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                                            <h1 className="text-2xl font-bold hidden sm:block">All Jobs</h1>
+                                            <div className="w-full sm:w-64">
+                                                <Input 
+                                                    placeholder="Search jobs..."
+                                                    value={searchQuery}
+                                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                                    className="w-full"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Mobile Search - Only show on mobile */}
+                                        <div className="sm:hidden mb-6">
+                                            <h1 className="text-2xl font-bold mb-4">All Jobs</h1>
+                                            <div className="w-full mb-4">
+                                                <Input 
+                                                    placeholder="Search jobs..."
+                                                    value={searchQuery}
+                                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                                    className="w-full"
+                                                />
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Jobs List */}
+                                        <div className="space-y-4 mt-6">
+                                            {filteredJobs.length > 0 ? (
+                                                filteredJobs.map((job) => {
+                                                    const jobData = {
+                                                        ...job,
+                                                        company: job.company || {},
+                                                        description: job.description || "No description provided"
+                                                    };
+                                                    
+                                                    return (
+                                                        <Job 
+                                                            key={job._id} 
+                                                            job={jobData}
+                                                            showApplicantCount={activeTab === 'your-jobs'}
+                                                            showViewApplicants={activeTab === 'your-jobs'}
+                                                            onViewApplicants={() => {
+                                                                setSelectedJobId(job._id);
+                                                                setSelectedJobData(job);
+                                                                setShowApplicants(true);
+                                                                fetchApplicants(job._id);
+                                                            }}
+                                                            isSelected={selectedJobId === job._id}
+                                                            onClick={() => {
+                                                                setSelectedJobId(job._id);
+                                                                setSelectedJobData(job);
+                                                                setShowApplicants(false);
+                                                            }}
+                                                        />
+                                                    );
+                                                })
                                             ) : (
-                                                <div className="w-full text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
-                                                    <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                                                    <h3 className="text-lg font-medium text-gray-900 mb-1">No jobs posted yet</h3>
-                                                    <p className="text-gray-500 mb-4">Get started by posting your first job</p>
-                                                    <Button 
-                                                        variant="default" 
-                                                        onClick={() => setActiveTab('post')}
-                                                        className="bg-blue-600 hover:bg-blue-700"
-                                                    >
-                                                        <Pencil className="h-4 w-4 mr-2" />
-                                                        Post a Job
-                                                    </Button>
+                                                <div className="text-center py-8">
+                                                    <p className="text-muted-foreground">No jobs found</p>
                                                 </div>
-                                            )
-                                        ) : activeTab === 'my-jobs' ? (
-                                            <div className="bg-white rounded-lg shadow-sm border p-4">
-                                                <h2 className="text-xl font-semibold mb-4">My Applied Jobs</h2>
-                                                {isLoadingAppliedJobs ? (
-                                                    <div className="text-center py-8">
-                                                        <Loader2 className="h-8 w-8 text-gray-400 animate-spin mx-auto mb-2" />
-                                                        <p className="text-sm text-gray-500">Loading your applied jobs...</p>
-                                                    </div>
-                                                ) : allAppliedJobs?.length > 0 ? (
-                                                    <AppliedJobTable />
-                                                ) : (
-                                                    <div className="text-center py-8">
-                                                        <Briefcase className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                                                        <h3 className="text-lg font-medium text-gray-900 mb-1">No applied jobs found</h3>
-                                                        <p className="text-gray-500">Start applying to jobs to see them here</p>
-                                                    </div>
-                                                )}
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {activeTab === 'your-jobs' && (
+                                    <div className="space-y-4">
+                                        <h1 className="text-2xl font-bold mb-6">Your Posted Jobs</h1>
+                                        {userJobs.length > 0 ? (
+                                            <div className="space-y-4">
+                                                {userJobs.map((job) => (
+                                                    <Job 
+                                                        key={job._id} 
+                                                        job={job}
+                                                        showApplicantCount
+                                                        showViewApplicants={true}
+                                                        onViewApplicants={() => {
+                                                            setSelectedJobId(job._id);
+                                                            setSelectedJobData(job);
+                                                            setShowApplicants(true);
+                                                            fetchApplicants(job._id);
+                                                        }}
+                                                        isSelected={selectedJobId === job._id}
+                                                        onClick={() => {
+                                                            setSelectedJobId(job._id);
+                                                            setSelectedJobData(job);
+                                                            setShowApplicants(false);
+                                                        }}
+                                                    />
+                                                ))}
                                             </div>
                                         ) : (
-                                            // Regular job listings
-                                            filteredJobs.length > 0 ? (
-                                                filteredJobs.map((job) => (
-                                                    <div key={job._id} className="w-full">
-                                                        <Job 
-                                                            job={job} 
-                                                            onViewDetails={() => handleJobSelect(job)}
-                                                            className="w-full"
-                                                        />
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <div className="w-full text-center py-8">
-                                                    <p className="text-muted-foreground">No jobs found matching your criteria.</p>
-                                                </div>
-                                            )
+                                            <div className="text-center py-8">
+                                                <p className="text-muted-foreground">You haven't posted any jobs yet</p>
+                                                <Button 
+                                                    className="mt-4" 
+                                                    onClick={() => setActiveTab('post')}
+                                                >
+                                                    Post a Job
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
-                                </div>
-                            )
-                        )}
-                        
-                        {/* Applicants List */}
-                        {showApplicants && selectedJobData && (
-                            <div className="w-full bg-white rounded-lg shadow-sm border p-6">
-                                <div className="flex items-center mb-6">
-                                    <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        onClick={handleBackToJobs}
-                                        className="mr-4"
-                                    >
-                                        <ChevronLeft className="h-4 w-4 mr-1" /> Back to Jobs
-                                    </Button>
-                                    <h2 className="text-2xl font-bold">
-                                        Applicants for {selectedJobData?.title}
-                                    </h2>
-                                </div>
-                                
-                                <ApplicantsList 
-                                    applicants={currentApplicants}
-                                    onBack={handleBackToJobs}
-                                    onUpdateStatus={updateApplicationStatus}
-                                />
+                                )}
                             </div>
                         )}
-                        
-                        {/* Post Job Form */}
+                        {activeTab === 'my-jobs' && (
+                            <div className="space-y-4">
+                                <h1 className="text-2xl font-bold mb-6">My Applications</h1>
+                                {allAppliedJobs?.length > 0 ? (
+                                    <AppliedJobTable jobs={allAppliedJobs} />
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <p className="text-muted-foreground">You haven't applied to any jobs yet</p>
+                                        <Button 
+                                            className="mt-4" 
+                                            onClick={() => setActiveTab('all')}
+                                        >
+                                            Browse Jobs
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right Side - Job Details, Post Job Form, or Applicants List */}
+                    <div className={`w-full ${(selectedJobId || activeTab === 'post' || showApplicants) ? 'lg:block' : 'lg:hidden'}`}>
+                        {/* Show Post Job Form when activeTab is 'post' */}
                         {activeTab === 'post' && (
-                            <Card>
-                                <CardContent className="p-6">
-                                    <form onSubmit={handleJobSubmit} className="space-y-4">
-                                        <div className="space-y-4">
-                                            <div>
-                                                <Label>Job Title</Label>
-                                                <Input 
-                                                    type="text" 
-                                                    name="title" 
-                                                    value={jobForm.title}
-                                                    onChange={(e) => setJobForm({...jobForm, title: e.target.value})}
-                                                    placeholder="Enter job title"
-                                                    required
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <Label>Job Description</Label>
-                                                <textarea
-                                                    name="description"
-                                                    value={jobForm.description}
-                                                    onChange={(e) => setJobForm({...jobForm, description: e.target.value})}
-                                                    placeholder="Enter job description"
-                                                    className="w-full p-2 border rounded-md min-h-[100px]"
-                                                    required
-                                                />
-                                            </div>
-                                            
-                                            <div>
-                                                <Label>Requirements</Label>
-                                                <textarea
-                                                    name="requirements"
-                                                    value={jobForm.requirements}
-                                                    onChange={(e) => setJobForm({...jobForm, requirements: e.target.value})}
-                                                    placeholder="Enter job requirements (one per line)"
-                                                    className="w-full p-2 border rounded-md min-h-[60px]"
-                                                    required
-                                                />
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <div>
-                                                    <Label>Salary</Label>
-                                                    <Input 
-                                                        type="number" 
-                                                        name="salary" 
-                                                        value={jobForm.salary}
-                                                        onChange={(e) => setJobForm({...jobForm, salary: e.target.value})}
-                                                        placeholder="Salary"
-                                                    />
-                                                </div>
-                                                
-                                                <div>
-                                                    <Label>Location</Label>
-                                                    <Input 
-                                                        type="text" 
-                                                        name="location" 
-                                                        value={jobForm.location}
-                                                        onChange={(e) => setJobForm({...jobForm, location: e.target.value})}
-                                                        placeholder="Location"
-                                                        required
-                                                    />
-                                                </div>
-                                                
-                                                <div>
-                                                    <Label>Job Type</Label>
-                                                    <Select
-                                                        value={jobForm.jobType}
-                                                        onValueChange={(value) => setJobForm({...jobForm, jobType: value})}
-                                                        required
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Select job type" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="Full-time">Full-time</SelectItem>
-                                                            <SelectItem value="Part-time">Part-time</SelectItem>
-                                                            <SelectItem value="Contract">Contract</SelectItem>
-                                                            <SelectItem value="Internship">Internship</SelectItem>
-                                                            <SelectItem value="Temporary">Temporary</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                
-                                                <div>
-                                                    <Label>Experience Level</Label>
-                                                    <Select
-                                                        value={jobForm.experienceLevel}
-                                                        onValueChange={(value) => setJobForm({...jobForm, experienceLevel: value})}
-                                                        required
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Select experience level" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            <SelectItem value="Entry Level">Entry Level</SelectItem>
-                                                            <SelectItem value="Mid Level">Mid Level</SelectItem>
-                                                            <SelectItem value="Senior Level">Senior Level</SelectItem>
-                                                            <SelectItem value="Executive">Executive</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                
-                                                <div>
-                                                    <Label>Number of Positions</Label>
-                                                    <Input 
-                                                        type="number" 
-                                                        name="position" 
-                                                        value={jobForm.position}
-                                                        onChange={(e) => setJobForm({...jobForm, position: e.target.value})}
-                                                        placeholder="Number of positions"
-                                                        min="1"
-                                                        required
-                                                    />
-                                                </div>
-                                                
-                                                <div>
-                                                    <Label>Company</Label>
-                                                    {companies.length > 0 ? (
-                                                        <Select
-                                                            value={jobForm.companyId}
-                                                            onValueChange={(value) => setJobForm({...jobForm, companyId: value})}
-                                                            required
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Select a company" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {companies.map((company) => (
-                                                                    <SelectItem key={company._id} value={company._id}>
-                                                                        {company.name}
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    ) : (
-                                                        <div className="text-sm text-red-500 p-2 bg-red-50 rounded">
-                                                            No companies found. Please register a company first.
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex justify-end space-x-3 pt-4">
+                            <div className="sticky top-6">
+                                {userCompanies.length > 0 ? (
+                                    <PostJob 
+                                        companies={userCompanies}
+                                        onJobCreated={(newJob) => {
+                                            // Add the new job to the user's jobs list
+                                            setUserJobs(prev => [newJob, ...prev]);
+                                            // Switch to the 'your-jobs' tab
+                                            setActiveTab('your-jobs');
+                                            // Select the newly created job
+                                            setSelectedJobId(newJob._id);
+                                            setSelectedJobData(newJob);
+                                            setShowApplicants(false);
+                                            // Show success message
+                                            toast.success('Job posted successfully!');
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                                        <div className="text-center">
+                                            <Building2 className="mx-auto h-12 w-12 text-gray-400" />
+                                            <h3 className="mt-2 text-lg font-medium text-gray-900">No company registered</h3>
+                                            <p className="mt-1 text-sm text-gray-500">You need to register a company before posting a job.</p>
+                                            <div className="mt-6">
                                                 <Button 
-                                                    type="button" 
+                                                    onClick={() => window.location.href = '/admin/companies/create'}
+                                                    className="inline-flex items-center"
+                                                >
+                                                    <Plus className="w-4 h-4 mr-2" />
+                                                    Register Company
+                                                </Button>
+                                            </div>
+                                            <div className="mt-4">
+                                                <Button 
                                                     variant="outline"
                                                     onClick={() => setActiveTab('all')}
-                                                    disabled={isPosting}
                                                 >
-                                                    Cancel
-                                                </Button>
-                                                <Button
-                                                    type="submit" 
-                                                    disabled={isPosting || companies.length === 0}
-                                                >
-                                                    {isPosting ? (
-                                                        <>
-                                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                            Posting...
-                                                        </>
-                                                    ) : 'Post Job'}
+                                                    Back to Jobs
                                                 </Button>
                                             </div>
                                         </div>
-                                    </form>
-                                </CardContent>
-                            </Card>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Show Applicants List when showApplicants is true */}
+                        {showApplicants && selectedJobData && (
+                            <div className="sticky top-6">
+                                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                                    <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white">
+                                        <div className="flex items-center">
+                                            <Button 
+                                                variant="ghost" 
+                                                size="icon" 
+                                                className="mr-4 text-white hover:bg-white/20"
+                                                onClick={() => setShowApplicants(false)}
+                                            >
+                                                <ArrowLeft className="h-5 w-5" />
+                                            </Button>
+                                            <div>
+                                                <h2 className="text-xl font-bold">Applicants for {selectedJobData.title}</h2>
+                                                <p className="text-blue-100 text-sm mt-1">
+                                                    {currentApplicants.length} {currentApplicants.length === 1 ? 'applicant' : 'applicants'} found
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="p-6">
+                                        <ApplicantsList 
+                                            applicants={currentApplicants}
+                                            onBack={() => setShowApplicants(false)}
+                                            onUpdateStatus={updateApplicationStatus}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Show Job Details when a job is selected and not showing applicants */}
+                        {selectedJobId && selectedJobData && !showApplicants && activeTab !== 'post' && (
+                            <div className="sticky top-6">
+                                <JobDescription 
+                                    jobId={selectedJobId}
+                                    jobData={selectedJobData}
+                                    onBack={() => {
+                                        setSelectedJobId(null);
+                                        setSelectedJobData(null);
+                                    }}
+                                    hideApplyButton={shouldHideApplyButton}
+                                />
+                            </div>
                         )}
                     </div>
                 </div>

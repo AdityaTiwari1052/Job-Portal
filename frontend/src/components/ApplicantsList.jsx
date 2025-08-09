@@ -1,7 +1,7 @@
 import React from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
 import { Button } from './ui/button';
-import { Download, ArrowLeft, CheckCircle2, XCircle } from 'lucide-react';
+import { Download, ArrowLeft, CheckCircle2, XCircle, Mail, Phone, FileText, User, Briefcase, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 
 // Helper function to get initials from name
@@ -15,216 +15,243 @@ const getInitials = (name) => {
     .substring(0, 2);
 };
 
-const ApplicantsList = ({ applicants = [], onBack, onUpdateStatus }) => {
-    // Normalize the applicants data from the backend response
-    const safeApplicants = (() => {
-        if (!applicants) return [];
-        
-        // Handle different response formats
-        const data = Array.isArray(applicants) ? applicants : (applicants.applicants || []);
-        
-        return data.map(app => {
-            // Extract nested properties with proper fallbacks
-            const applicant = app.applicant || {};
-            const profile = applicant.profile || {};
-            
-            return {
-                _id: app._id,
-                applicant: {
-                    _id: applicant._id,
-                    name: applicant.name || applicant.fullname || 'Anonymous',
-                    email: applicant.email || 'No email provided',
-                    profilePhoto: profile.profilePhoto,
-                    skills: Array.isArray(profile.skills) ? profile.skills : [],
-                    bio: profile.bio,
-                },
-                resume: profile.resume || app.resume,
-                resumeOriginalName: profile.resumeOriginalName || 'resume.pdf',
-                appliedAt: app.appliedAt || app.createdAt,
-                status: app.status || 'Pending',
-                coverLetter: app.coverLetter
-            };
-        });
-    })();
-    
-    const handleDownloadResume = (resumeUrl, resumeName = 'resume.pdf') => {
-        if (resumeUrl) {
-            // Create a temporary anchor element
-            const link = document.createElement('a');
-            link.href = resumeUrl;
-            link.download = resumeName.endsWith('.pdf') ? resumeName : `${resumeName}.pdf`;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } else {
-            alert('No resume available for this applicant');
-        }
-    };
+const StatusBadge = ({ status }) => {
+  const statusConfig = {
+    'Pending': { bg: 'bg-yellow-100 text-yellow-800', icon: <Clock className="w-3 h-3 mr-1" /> },
+    'accepted': { bg: 'bg-green-100 text-green-800', icon: <CheckCircle2 className="w-3 h-3 mr-1" /> },
+    'Rejected': { bg: 'bg-red-100 text-red-800', icon: <XCircle className="w-3 h-3 mr-1" /> },
+    'Interview': { bg: 'bg-blue-100 text-blue-800', icon: <Briefcase className="w-3 h-3 mr-1" /> },
+  }[status] || { bg: 'bg-gray-100 text-gray-800', icon: null };
 
-    const handleStatusUpdate = async (applicationId, status) => {
-        try {
-            if (onUpdateStatus) {
-                await onUpdateStatus(applicationId, status);
-            }
-        } catch (error) {
-            console.error('Error updating application status:', error);
-        }
-    };
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.bg}`}>
+      {statusConfig.icon}
+      {status}
+    </span>
+  );
+};
 
-    if (safeApplicants.length === 0) {
-        return (
-            <div className="p-6 max-w-6xl mx-auto">
-                <Button 
-                    variant="outline" 
-                    onClick={onBack}
-                    className="mb-6 flex items-center gap-2"
-                >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to Jobs
-                </Button>
-                <div className="bg-white rounded-lg border p-8 text-center">
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Applicants Yet</h3>
-                    <p className="text-gray-500">There are no applicants for this job posting at the moment.</p>
-                </div>
+const ApplicantCard = ({ applicant, onUpdateStatus, onDownloadResume }) => {
+  const { _id, applicant: user, status, appliedAt, resume, coverLetter } = applicant;
+  
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow duration-200">
+      <div className="p-4 sm:p-6">
+        <div className="flex items-start space-x-4">
+          <Avatar className="h-16 w-16 border-2 border-blue-100">
+            {user.profilePhoto ? (
+              <AvatarImage src={user.profilePhoto} alt={user.name} />
+            ) : (
+              <AvatarFallback className="bg-blue-50 text-blue-600 text-lg">
+                {getInitials(user.name)}
+              </AvatarFallback>
+            )}
+          </Avatar>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 truncate">{user.name}</h3>
+              <div className="ml-2">
+                <StatusBadge status={status} />
+              </div>
             </div>
-        );
-    }
-
-    return (
-        <div className="p-6 max-w-6xl mx-auto">
-            <Button 
+            
+            <div className="mt-1 flex flex-col sm:flex-row sm:flex-wrap sm:mt-0 sm:space-x-4">
+              <div className="flex items-center text-sm text-gray-500">
+                <Mail className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
+                <span className="truncate">{user.email}</span>
+              </div>
+              {user.phone && (
+                <div className="flex items-center text-sm text-gray-500">
+                  <Phone className="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" />
+                  <span>{user.phone}</span>
+                </div>
+              )}
+            </div>
+            
+            {user.skills && user.skills.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {user.skills.slice(0, 5).map((skill, index) => (
+                  <span key={index} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {skill}
+                  </span>
+                ))}
+                {user.skills.length > 5 && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                    +{user.skills.length - 5} more
+                  </span>
+                )}
+              </div>
+            )}
+            
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-3">
+              <Button 
                 variant="outline" 
-                onClick={onBack}
-                className="mb-6 flex items-center gap-2"
-            >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Jobs
-            </Button>
-            
-            <div className="bg-white rounded-lg border overflow-hidden">
-                <div className="px-6 py-4 border-b">
-                    <h2 className="text-xl font-semibold text-gray-900">Job Applicants</h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                        {safeApplicants.length} {safeApplicants.length === 1 ? 'applicant' : 'applicants'} found
-                    </p>
-                </div>
-                
-                <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Applicant
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Email
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Applied On
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Resume
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {safeApplicants.map((app) => (
-                                <tr key={app._id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex items-center">
-                                            <div className="flex-shrink-0 h-10 w-10">
-                                                <Avatar className="h-10 w-10">
-                                                    <AvatarImage src={app.applicant.profilePhoto} alt={app.applicant.name} />
-                                                    <AvatarFallback className="bg-blue-100 text-blue-600">
-                                                        {getInitials(app.applicant.name)}
-                                                    </AvatarFallback>
-                                                </Avatar>
-                                            </div>
-                                            <div className="ml-4">
-                                                <div className="text-sm font-medium text-gray-900">
-                                                    {app.applicant.name}
-                                                </div>
-                                                {app.applicant.skills?.length > 0 && (
-                                                    <div className="flex flex-wrap gap-1 mt-1">
-                                                        {app.applicant.skills.slice(0, 2).map((skill, idx) => (
-                                                            <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                                                                {skill}
-                                                            </span>
-                                                        ))}
-                                                        {app.applicant.skills.length > 2 && (
-                                                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-                                                                +{app.applicant.skills.length - 2} more
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {app.applicant.email}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {app.appliedAt ? format(new Date(app.appliedAt), 'MMM d, yyyy') : 'N/A'}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {app.resume ? (
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleDownloadResume(app.resume, app.resumeOriginalName)}
-                                                className="text-blue-600 hover:text-blue-800 hover:bg-blue-50"
-                                            >
-                                                <Download className="w-4 h-4 mr-1" />
-                                                Download
-                                            </Button>
-                                        ) : (
-                                            <span className="text-gray-400 text-sm">No resume</span>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                                            app.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                                            app.status === 'rejected' ? 'bg-red-100 text-red-800' :
-                                            'bg-yellow-100 text-yellow-800'
-                                        }`}>
-                                            {app.status?.charAt(0).toUpperCase() + app.status?.slice(1) || 'Pending'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <div className="flex items-center justify-end space-x-2">
-                                            <button
-                                                onClick={() => handleStatusUpdate(app._id, 'accepted')}
-                                                className="text-green-600 hover:text-green-800 p-1 rounded-full hover:bg-green-50"
-                                                title="Accept"
-                                            >
-                                                <CheckCircle2 className="h-5 w-5" />
-                                            </button>
-                                            <button
-                                                onClick={() => handleStatusUpdate(app._id, 'rejected')}
-                                                className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-50"
-                                                title="Reject"
-                                            >
-                                                <XCircle className="h-5 w-5" />
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                size="sm" 
+                className="w-full sm:w-auto justify-center"
+                onClick={() => onDownloadResume(resume, user.resumeOriginalName)}
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download CV
+              </Button>
+              
+              <div className="flex space-x-2">
+                <Button 
+                  variant={status === 'accepted' ? 'default' : 'outline'} 
+                  size="sm" 
+                  className={`w-full mb-2 ${status === 'accepted' ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                  onClick={() => onUpdateStatus(_id, 'accepted')}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-1" /> Accept
+                </Button>
+                <Button 
+                  variant={status === 'Rejected' ? 'destructive' : 'outline'} 
+                  size="sm" 
+                  className="flex-1 sm:flex-none"
+                  onClick={() => onUpdateStatus(_id, 'Rejected')}
+                >
+                  <XCircle className="w-4 h-4 mr-1" /> Reject
+                </Button>
+              </div>
             </div>
+            
+            {coverLetter && (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <h4 className="text-sm font-medium text-gray-700 mb-1 flex items-center">
+                  <FileText className="w-4 h-4 mr-1.5 text-gray-400" />
+                  Cover Letter
+                </h4>
+                <p className="text-sm text-gray-600 line-clamp-2">{coverLetter}</p>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+      
+      <div className="bg-gray-50 px-4 py-2 text-xs text-gray-500 flex justify-between items-center">
+        <span>Applied {format(new Date(appliedAt), 'MMM d, yyyy')}</span>
+        <span className="flex items-center">
+          <User className="w-3 h-3 mr-1" />
+          {user.experience || 'No'} experience
+        </span>
+      </div>
+    </div>
+  );
+};
+
+const ApplicantsList = ({ applicants = [], onBack, onUpdateStatus }) => {
+  // Normalize the applicants data from the backend response
+  const safeApplicants = (() => {
+    if (!applicants) return [];
+    
+    // Handle different response formats
+    const data = Array.isArray(applicants) ? applicants : (applicants.applicants || []);
+    
+    return data.map(app => {
+      // Extract nested properties with proper fallbacks
+      const applicant = app.applicant || {};
+      const profile = applicant.profile || {};
+      
+      return {
+        _id: app._id,
+        applicant: {
+          _id: applicant._id,
+          name: applicant.name || applicant.fullname || 'Anonymous',
+          email: applicant.email || 'No email provided',
+          phone: applicant.phone || profile.phone,
+          profilePhoto: profile.profilePhoto,
+          skills: Array.isArray(profile.skills) ? profile.skills : [],
+          bio: profile.bio,
+          experience: profile.experience,
+        },
+        resume: profile.resume || app.resume,
+        resumeOriginalName: profile.resumeOriginalName || 'resume.pdf',
+        appliedAt: app.appliedAt || app.createdAt,
+        status: app.status || 'Pending',
+        coverLetter: app.coverLetter
+      };
+    });
+  })();
+
+  const handleDownloadResume = (resumeUrl, resumeName = 'resume.pdf') => {
+    if (resumeUrl) {
+      // Create a temporary anchor element
+      const link = document.createElement('a');
+      link.href = resumeUrl;
+      link.download = resumeName.endsWith('.pdf') ? resumeName : `${resumeName}.pdf`;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      alert('No resume available for this applicant');
+    }
+  };
+
+  const handleStatusUpdate = async (applicationId, status) => {
+    try {
+      if (onUpdateStatus) {
+        await onUpdateStatus(applicationId, status);
+      }
+    } catch (error) {
+      console.error('Error updating application status:', error);
+    }
+  };
+
+  if (safeApplicants.length === 0) {
+    return (
+      <div className="text-center p-8">
+        <div className="mx-auto h-16 w-16 text-gray-400 mb-4">
+          <User className="w-full h-full" />
+        </div>
+        <h3 className="text-lg font-medium text-gray-900 mb-1">No applicants yet</h3>
+        <p className="text-gray-500 mb-6">There are no applicants for this job posting at the moment.</p>
+        <Button 
+          variant="outline" 
+          onClick={onBack}
+          className="inline-flex items-center"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Back to Jobs
+        </Button>
+      </div>
     );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Applicants</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            {safeApplicants.length} {safeApplicants.length === 1 ? 'applicant' : 'applicants'} found
+          </p>
+        </div>
+        <div className="mt-4 sm:mt-0">
+          <Button 
+            variant="outline" 
+            onClick={onBack}
+            className="inline-flex items-center"
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Jobs
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+        {safeApplicants.map((applicant) => (
+          <ApplicantCard 
+            key={applicant._id}
+            applicant={applicant}
+            onUpdateStatus={handleStatusUpdate}
+            onDownloadResume={handleDownloadResume}
+          />
+        ))}
+      </div>
+    </div>
+  );
 };
 
 export default ApplicantsList;

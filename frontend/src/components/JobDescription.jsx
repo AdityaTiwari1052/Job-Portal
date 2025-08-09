@@ -10,42 +10,69 @@ import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 import apiClient from '@/utils/apiClient';
 
-const JobDescription = ({ job: jobProp, hideApplyButton = false, onApplySuccess }) => {
-    const { title, description, location, jobType, salary, skills, company, createdAt, applications = [] } = jobProp || useSelector(store => store.job);
+const JobDescription = ({ job: jobProp, jobId, jobData, hideApplyButton = false, onApplySuccess, onBack }) => {
+    // Use jobData prop if available, otherwise use jobProp or get from Redux store
+    const job = jobData || jobProp || useSelector(store => store.job);
     const { user } = useSelector(store => store.auth);
     const dispatch = useDispatch();
     const navigate = useNavigate();
     const params = useParams();
-    const jobId = params.id || (jobProp && jobProp._id);
+    const jobIdFromParams = params.id;
     
-    const job = jobProp || useSelector(store => store.job);
+    // Use the jobId prop if available, otherwise get it from params or job object
+    const finalJobId = jobId || jobIdFromParams || (job && job._id);
+    
     const [isLoading, setIsLoading] = useState(false);
     const [isApplied, setIsApplied] = useState(false);
+    const [isLoadingJob, setIsLoadingJob] = useState(false);
+    const [jobDetails, setJobDetails] = useState(job);
+
+    // Fetch job details if only jobId is provided
+    useEffect(() => {
+        const fetchJobDetails = async () => {
+            if (finalJobId && !jobDetails?._id) {
+                try {
+                    setIsLoadingJob(true);
+                    const response = await apiClient.get(`/job/get/${finalJobId}`);
+                    if (response.data?.success) {
+                        setJobDetails(response.data.job);
+                    }
+                } catch (error) {
+                    console.error('Error fetching job details:', error);
+                    toast.error('Failed to load job details');
+                } finally {
+                    setIsLoadingJob(false);
+                }
+            }
+        };
+
+        fetchJobDetails();
+    }, [finalJobId, jobDetails]);
 
     // Check if user has already applied
     useEffect(() => {
-        if (user && job?.applications) {
-            const hasApplied = job.applications.some(app => 
+        if (user && jobDetails?.applications) {
+            const hasApplied = jobDetails.applications.some(app => 
                 (app.applicant?._id === user._id) || 
                 (app.applicant === user._id) ||
                 (typeof app === 'string' && app === user._id)
             );
             setIsApplied(hasApplied);
         }
-    }, [user, job]);
+    }, [user, jobDetails]);
 
     // Check if current user is the job poster
     const isJobPoster = useMemo(() => {
-        if (!user || !job) return false;
+        if (!user || !jobDetails) return false;
         const possiblePosterIds = [
-            job.postedBy?._id,
-            job.postedBy,
-            job.created_by,
-            job.createdBy?._id,
-            job.createdBy
+            jobDetails.postedBy?._id,
+            jobDetails.postedBy,
+            jobDetails.created_by,
+            jobDetails.createdBy?._id,
+            jobDetails.createdBy
         ].filter(Boolean);
         return possiblePosterIds.includes(user._id);
-    }, [user, job]);
+    }, [user, jobDetails]);
 
     const handleApply = async () => {
         if (!user) {
@@ -53,25 +80,27 @@ const JobDescription = ({ job: jobProp, hideApplyButton = false, onApplySuccess 
             return;
         }
 
-        if (isApplied) return;
+        if (isApplied || !finalJobId) {
+            console.error('Cannot apply: isApplied=', isApplied, 'jobId=', finalJobId);
+            return;
+        }
 
         try {
             setIsLoading(true);
-            const response = await apiClient.post(`/application/apply/${job._id}`);
+            console.log('Applying to job ID:', finalJobId);
+            
+            const response = await apiClient.post(`/application/apply/${finalJobId}`);
             
             if (response.data.success) {
                 setIsApplied(true);
                 toast.success('Application submitted successfully!');
                 if (onApplySuccess) onApplySuccess();
                 
-                // Update the job in Redux store to include this application
-                if (job) {
-                    const updatedJob = {
-                        ...job,
-                        applications: [...(job.applications || []), { applicant: user._id }]
-                    };
-                    dispatch(setSingleJob(updatedJob));
-                }
+                // Update the job in local state to include this application
+                setJobDetails(prev => ({
+                    ...prev,
+                    applications: [...(prev?.applications || []), { applicant: user._id }]
+                }));
             }
         } catch (error) {
             console.error('Error applying to job:', error);
@@ -82,14 +111,39 @@ const JobDescription = ({ job: jobProp, hideApplyButton = false, onApplySuccess 
     };
 
     // Don't show anything if no job data
-    if (!job) return null;
+    if (isLoadingJob) {
+        return (
+            <div className="flex justify-center items-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+        );
+    }
+
+    if (!jobDetails) {
+        return (
+            <div className="text-center py-12">
+                <p className="text-gray-500">No job details available</p>
+                {onBack && (
+                    <Button 
+                        variant="outline" 
+                        className="mt-4"
+                        onClick={onBack}
+                    >
+                        Back to Jobs
+                    </Button>
+                )}
+            </div>
+        );
+    }
+
+    const { title, description, requirements, salary, location, jobType, experienceLevel, company, skills, createdAt } = jobDetails;
 
     return (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
             <div className="p-6 border-b border-gray-200">
                 <div className="flex justify-between items-start">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900 mb-2">{title}</h1>
+                        <h1 className="text-2xl font-bold text-gray-900 mb-2">{title || 'No Title'}</h1>
                         <div className="flex items-center text-gray-600 mb-4">
                             <Building2 className="h-4 w-4 mr-1.5" />
                             <span>{company?.name || 'Company Not Specified'}</span>
@@ -106,7 +160,7 @@ const JobDescription = ({ job: jobProp, hideApplyButton = false, onApplySuccess 
                 <div className="mt-4 flex flex-wrap gap-2">
                     <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                         <MapPin className="h-4 w-4 mr-1" />
-                        {location || 'Remote'}
+                        {location || 'Not Specified'}
                     </div>
                     <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                         <Briefcase className="h-4 w-4 mr-1" />
@@ -115,7 +169,13 @@ const JobDescription = ({ job: jobProp, hideApplyButton = false, onApplySuccess 
                     {salary && (
                         <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
                             <DollarSign className="h-4 w-4 mr-1" />
-                            {salary}
+                            {salary} {typeof salary === 'number' ? 'LPA' : ''}
+                        </div>
+                    )}
+                    {experienceLevel && (
+                        <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
+                            <UserCheck className="h-4 w-4 mr-1" />
+                            {experienceLevel}
                         </div>
                     )}
                 </div>
@@ -132,7 +192,18 @@ const JobDescription = ({ job: jobProp, hideApplyButton = false, onApplySuccess 
                     </div>
                 </div>
 
-                {skills?.length > 0 && (
+                {Array.isArray(requirements) && requirements.length > 0 && (
+                    <div className="mb-6">
+                        <h3 className="text-md font-medium text-gray-900 mb-2">Requirements</h3>
+                        <ul className="list-disc pl-5 space-y-1">
+                            {requirements.map((req, index) => (
+                                <li key={index} className="text-gray-700">{req}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {Array.isArray(skills) && skills.length > 0 && (
                     <div className="mb-6">
                         <h3 className="text-md font-medium text-gray-900 mb-2">Skills Required</h3>
                         <div className="flex flex-wrap gap-2">
@@ -177,6 +248,18 @@ const JobDescription = ({ job: jobProp, hideApplyButton = false, onApplySuccess 
                                 )}
                             </Button>
                         )}
+                    </div>
+                )}
+
+                {onBack && (
+                    <div className="mt-4">
+                        <Button 
+                            variant="outline" 
+                            onClick={onBack}
+                            className="w-full"
+                        >
+                            Back to Jobs
+                        </Button>
                     </div>
                 )}
             </div>
