@@ -6,20 +6,20 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
-import { Loader2, ChevronLeft, ChevronRight, Pencil, Briefcase, Building2, X } from 'lucide-react';
+import { Pencil, Briefcase, Building2, X, CheckCircle2, XCircle, Users, Eye, ChevronLeft, Loader2, Bookmark, DollarSign, Clock, MapPin, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '@/utils/apiClient';
 import Job from './Job';
 import JobDescription from './JobDescription';
-import CompanyCreate from './admin/CompanyCreate';
 import CompanySetup from './admin/CompanySetup';
 import PostJob from './admin/PostJob';
 import ApplicantsList from './ApplicantsList';
 import { setSingleCompany } from '@/redux/companySlice';
+import { setAllAppliedJobs } from '@/redux/jobSlice';
 import useGetAllCompanies from '@/hooks/useGetAllCompanies';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { CheckCircle2, XCircle } from 'lucide-react';
 import { Avatar } from './ui/avatar';
+import AppliedJobTable from './AppliedJobTable';
 
 // Hide scrollbar but keep functionality
 const scrollbarStyles = `
@@ -38,41 +38,65 @@ const JobsPage = () => {
     const [isPosting, setIsPosting] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState({ jobType: 'all', location: '' });
-    const [companyName, setCompanyName] = useState('');
     const [selectedJobId, setSelectedJobId] = useState(null);
     const [selectedJobData, setSelectedJobData] = useState(null);
     const [showCompanyForm, setShowCompanyForm] = useState(false);
-    const [newCompanyId, setNewCompanyId] = useState(null);
     const [userJobs, setUserJobs] = useState([]);
     const [showApplicants, setShowApplicants] = useState(false);
     const [currentApplicants, setCurrentApplicants] = useState([]);
+    const [isLoadingAppliedJobs, setIsLoadingAppliedJobs] = useState(false);
     
     const { allJobs = [] } = useSelector(store => store.job);
     const { companies = [] } = useSelector(store => store.company);
     const { user } = useSelector(store => store.auth);
+    const { allAppliedJobs = [] } = useSelector(store => store.job);
     
     // Fetch all companies
     useGetAllCompanies();
     
+    // Debug log when applied jobs change
+    useEffect(() => {
+        console.log('Applied jobs updated:', allAppliedJobs);
+    }, [allAppliedJobs]);
+
+    // Handle tab change
+    const handleTabChange = (tab) => {
+        console.log('Tab changed to:', tab);
+        setActiveTab(tab);
+        setSelectedJobId(null);
+        setSelectedJobData(null);
+    };
+
     // Fetch user's posted jobs when tab changes to 'your-jobs'
     useEffect(() => {
         const fetchUserJobs = async () => {
             if (activeTab === 'your-jobs' && user?._id) {
                 try {
-                    const res = await apiClient.get('/api/v1/job/getadminjobs');
+                    console.log('🔍 [JobsPage] Fetching user jobs...');
+                    const res = await apiClient.get('/job/getadminjobs');
+                    console.log('📦 [JobsPage] User jobs response:', res.data);
+                    
                     if (res.data.success) {
-                        setUserJobs(res.data.jobs);
+                        console.log(`✅ [JobsPage] Found ${res.data.jobs?.length || 0} jobs`);
+                        setUserJobs(res.data.jobs || []);
                     } else {
-                        // If no jobs found, set empty array instead of showing error
+                        console.log('ℹ️ [JobsPage] No jobs found or error in response');
                         setUserJobs([]);
                     }
                 } catch (error) {
-                    console.error('Error fetching user jobs:', error);
-                    // If 404 (no jobs found), set empty array instead of showing error
+                    console.error('❌ [JobsPage] Error fetching user jobs:', {
+                        message: error.message,
+                        status: error.response?.status,
+                        data: error.response?.data,
+                        config: error.config
+                    });
+                    
                     if (error.response?.status === 404) {
+                        // No jobs found is not an error case
                         setUserJobs([]);
                     } else {
-                        toast.error('Failed to fetch your jobs');
+                        toast.error(error.response?.data?.message || 'Failed to fetch your jobs');
+                        setUserJobs([]);
                     }
                 }
             }
@@ -80,56 +104,173 @@ const JobsPage = () => {
         fetchUserJobs();
     }, [activeTab, user?._id]);
     
+    // Fetch applied jobs when the tab is active or when user changes
+    useEffect(() => {
+        console.log('useEffect - activeTab:', activeTab, 'user._id:', user?._id);
+        const fetchAppliedJobs = async () => {
+            if (activeTab === 'my-jobs' && user?._id) {
+                console.log('Fetching applied jobs for user:', user._id);
+                setIsLoadingAppliedJobs(true);
+                try {
+                    // Using the correct endpoint from the backend
+                    const res = await apiClient.get('/application/get', { 
+                        withCredentials: true
+                    });
+                    
+                    console.log('API Response:', res.data);
+                    
+                    if (res.data && res.data.success) {
+                        console.log('Successfully fetched applications:', res.data.application);
+                        dispatch(setAllAppliedJobs(res.data.application || []));
+                    } else {
+                        console.error('Unexpected API response format:', res.data);
+                        toast.error(res.data?.message || 'Failed to load applications');
+                    }
+                } catch (error) {
+                    console.error('Error fetching applied jobs:', {
+                        message: error.message,
+                        response: error.response?.data,
+                        status: error.response?.status,
+                        config: error.config
+                    });
+                    toast.error(error.response?.data?.message || 'Failed to load your job applications');
+                } finally {
+                    setIsLoadingAppliedJobs(false);
+                }
+            }
+        };
+        
+        fetchAppliedJobs();
+    }, [activeTab, user?._id, dispatch]);
+    
     // Fetch applicants for a job
     const fetchApplicants = async (jobId, jobData) => {
-        console.log('Fetching applicants for job:', { jobId, jobData });
+        console.log('🔍 [JobsPage] Fetching applicants for job:', { jobId, jobData });
+        setShowApplicants(true); // Show loading state immediately
+        
         try {
-            const res = await apiClient.get(`/api/v1/applications/job/${jobId}`);
-            console.log('API Response:', res.data);
+            // Clear previous applicants
+            setCurrentApplicants([]);
             
-            if (res.data.success) {
-                console.log('Setting applicants:', res.data.applications);
-                setCurrentApplicants(res.data.applications || []);
-                setShowApplicants(true);
-                
-                // Set the selected job data
-                if (jobData) {
-                    console.log('Setting selected job data from props:', jobData);
-                    setSelectedJobData(jobData);
+            // Set the selected job data first to show the loading state
+            if (jobData) {
+                console.log('📝 [JobsPage] Setting selected job data from props:', jobData);
+                setSelectedJobData(jobData);
+            } else {
+                // Try to find the job in userJobs if jobData not provided
+                const job = userJobs.find(j => j._id === jobId);
+                if (job) {
+                    console.log('📝 [JobsPage] Found job in userJobs:', job);
+                    setSelectedJobData(job);
                 } else {
-                    // Fallback to finding the job in userJobs if jobData not provided
-                    const job = userJobs.find(j => j._id === jobId);
-                    if (job) {
-                        console.log('Found job in userJobs:', job);
-                        setSelectedJobData(job);
-                    } else {
-                        console.error('Job not found in userJobs:', jobId);
+                    console.error('❌ [JobsPage] Job not found in userJobs:', jobId);
+                    toast.error('Job data not found');
+                    return;
+                }
+            }
+            
+            // Log the job data to see what we're working with
+            console.log('🔍 [JobsPage] Job data:', {
+                jobId,
+                jobData,
+                applicationsCount: jobData?.applications?.length,
+                applications: jobData?.applications
+            });
+            
+            // The backend route is defined as /api/v1/application/job/:jobId/applicants
+            // The base URL already includes /api/v1, so we just need the application part
+            let apiEndpoint = `/application/job/${jobId}/applicants`;
+            
+            // Log the full URL that will be used
+            const fullUrl = `${apiClient.defaults.baseURL}${apiEndpoint}`;
+            console.log('🌐 [JobsPage] Full API URL:', fullUrl);
+            
+            console.log('🔍 [JobsPage] Making API request to:', apiEndpoint);
+            console.log('🔧 [JobsPage] API Client Config:', {
+                baseURL: apiClient.defaults.baseURL,
+                withCredentials: apiClient.defaults.withCredentials,
+                headers: apiClient.defaults.headers
+            });
+            
+            const res = await apiClient.get(apiEndpoint).catch(error => {
+                console.error('❌ [JobsPage] API Request failed:', {
+                    message: error.message,
+                    response: error.response?.data,
+                    status: error.response?.status,
+                    config: {
+                        url: error.config?.url,
+                        method: error.config?.method,
+                        headers: error.config?.headers
                     }
+                });
+                throw error;
+            });
+
+            console.log('📦 [JobsPage] API Response for applicants:', {
+                status: res.status,
+                statusText: res.statusText,
+                data: res.data,
+                success: res.data?.success,
+                applicantsCount: res.data?.applicants?.length,
+                applicants: res.data?.applicants ? '[...]' : 'undefined'
+            });
+            
+            if (res.data?.success) {
+                let applicants = [];
+                
+                // Handle different response formats
+                if (Array.isArray(res.data.applicants)) {
+                    applicants = res.data.applicants;
+                    console.log(`✅ [JobsPage] Found ${applicants.length} applicants in response`);
+                } else if (res.data.applicants && typeof res.data.applicants === 'object') {
+                    // If applicants is an object, convert it to an array
+                    applicants = Object.values(res.data.applicants);
+                    console.log(`✅ [JobsPage] Converted object to array with ${applicants.length} applicants`);
+                } else if (Array.isArray(res.data)) {
+                    // If the response is directly an array
+                    applicants = res.data;
+                    console.log(`✅ [JobsPage] Response is direct array with ${applicants.length} items`);
+                } else {
+                    console.warn('⚠️ [JobsPage] Unexpected response format:', res.data);
+                }
+                
+                console.log(`✅ [JobsPage] Processed ${applicants.length} applicants:`, applicants);
+                setCurrentApplicants(applicants);
+                
+                // If no applicants, show a message
+                if (applicants.length === 0) {
+                    console.log('ℹ️ [JobsPage] No applicants found in the response');
+                    toast.info('No applicants found for this job');
                 }
             } else {
-                console.error('API returned success:false', res.data);
+                console.error('❌ [JobsPage] API returned success:false', res.data);
+                toast.error(res.data.message || 'Failed to fetch applicants');
             }
         } catch (error) {
-            console.error('Error fetching applicants:', {
+            console.error('❌ [JobsPage] Error fetching applicants:', {
                 message: error.message,
                 response: error.response?.data,
                 status: error.response?.status,
                 config: {
                     url: error.config?.url,
-                    method: error.config?.method,
-                    headers: error.config?.headers
+                    method: error.config?.method
                 }
             });
-            toast.error(error.response?.data?.message || 'Failed to fetch applicants');
+            
+            // More specific error messages
+            if (error.response?.status === 404) {
+                toast.error('No applicants found for this job');
+                setCurrentApplicants([]); // Clear any previous applicants
+            } else {
+                toast.error(error.response?.data?.message || 'Failed to fetch applicants');
+            }
         }
     };
 
     const handleRegisterCompany = () => {
         setShowCompanyForm(true);
-        setSelectedJobId(null);
-        setSelectedJobData(null);
     };
-    
+
     const handleJobSelect = (job, showApplicantsView = false) => {
         if (showApplicantsView) {
             // If showing applicants, fetch the applicants for this job
@@ -149,7 +290,7 @@ const JobsPage = () => {
     // Handle going back to jobs list from applicants view
     const updateApplicationStatus = async (applicationId, status) => {
         try {
-            const res = await apiClient.post(`/api/v1/application/update-status/${applicationId}`, { status });
+            const res = await apiClient.post(`/application/update-status/${applicationId}`, { status });
             if (res.data.success) {
                 toast.success(`Application ${status.toLowerCase()} successfully`);
                 // Refresh the applicants list
@@ -247,7 +388,7 @@ const JobsPage = () => {
                 position: Number(jobForm.position)
             };
             
-            const res = await apiClient.post('/api/v1/job/post', jobData, {
+            const res = await apiClient.post('/job/post', jobData, {
                 headers: { 'Content-Type': 'application/json' },
                 withCredentials: true
             });
@@ -292,7 +433,33 @@ const JobsPage = () => {
         return matchesSearch && matchesFilters;
     });
 
+    const shouldHideApplyButton = selectedJobData && (
+        activeTab === 'your-jobs' || 
+        selectedJobData.postedBy?._id === user?._id || 
+        selectedJobData.postedBy === user?._id
+    );
 
+    useEffect(() => {
+        if (selectedJobData) {
+            console.log('JobsPage - JobDescription props:', {
+                jobId: selectedJobData?._id,
+                jobTitle: selectedJobData?.title,
+                jobPostedBy: selectedJobData?.postedBy,
+                jobPostedById: selectedJobData?.postedBy?._id || selectedJobData?.postedBy,
+                currentUserId: user?._id,
+                activeTab,
+                shouldHideApplyButton,
+                jobData: selectedJobData
+            });
+        }
+    }, [selectedJobData, user, activeTab]);
+
+    const handleCompanySetupComplete = () => {
+        setShowCompanyForm(false);
+        toast.success('Company setup completed successfully!');
+        // Refresh the companies list
+        apiClient.get('/company/get');
+    };
 
     return (
         <div className="min-h-screen bg-gray-50">
@@ -303,6 +470,18 @@ const JobsPage = () => {
                     <div className={`${selectedJobId ? 'hidden lg:block lg:w-1/4' : 'w-full lg:w-1/4'} flex-shrink-0 space-y-4`}>
                     <Card className="border-0 shadow-sm">
                         <CardContent className="p-4 space-y-4">
+                            {/* My Jobs Section */}
+                            <div className="space-y-2">
+                                <Button 
+                                    variant={activeTab === 'my-jobs' ? 'default' : 'outline'} 
+                                    className="w-full justify-start gap-2 h-12 text-base font-medium"
+                                    onClick={() => handleTabChange('my-jobs')}
+                                >
+                                    <Bookmark className="w-5 h-5" />
+                                    My Jobs
+                                </Button>
+                            </div>
+
                             <div className="space-y-2">
                                 <Button 
                                     variant={activeTab === 'post' ? 'default' : 'outline'} 
@@ -330,19 +509,19 @@ const JobsPage = () => {
                                     All Jobs
                                 </Button>
                                 
-                                {/* Your Jobs Section */}
+                                {/* Posted Jobs Section */}
                                 <div className="mt-4">
                                     <h3 className="text-sm font-medium px-4 py-2 text-muted-foreground">
                                         <Briefcase className="inline-block w-4 h-4 mr-2" />
-                                        Your Jobs
+                                        Posted Jobs
                                     </h3>
                                     <Button 
                                         variant={activeTab === 'your-jobs' ? 'secondary' : 'ghost'} 
                                         className="w-full justify-start"
-                                        onClick={() => setActiveTab('your-jobs')}
+                                        onClick={() => handleTabChange('your-jobs')}
                                     >
                                         <Briefcase className="w-4 h-4 mr-2" />
-                                        View Your Jobs
+                                        View Posted Jobs
                                     </Button>
                                 </div>
                                 
@@ -440,10 +619,7 @@ const JobsPage = () => {
                                 <div className="flex justify-between items-center mb-6">
                                     <Button 
                                         variant="outline" 
-                                        onClick={() => {
-                                            setShowCompanyForm(false);
-                                            setNewCompanyId(null);
-                                        }}
+                                        onClick={() => setShowCompanyForm(false)}
                                         className="flex items-center gap-2"
                                     >
                                         <ChevronLeft className="w-4 h-4" /> Back to Jobs
@@ -451,19 +627,10 @@ const JobsPage = () => {
                                     <h1 className="text-2xl font-bold">Register Your Company</h1>
                                     <div className="w-10"></div> {/* For alignment */}
                                 </div>
-                                {!newCompanyId ? (
-                                    <CompanyCreate onCompanyCreated={(companyId) => {
-                                        setNewCompanyId(companyId);
-                                        // Refresh companies list
-                                        apiClient.get('/api/v1/company/all');
-                                    }} />
-                                ) : (
-                                    <CompanySetup id={newCompanyId} onComplete={() => {
-                                        setShowCompanyForm(false);
-                                        setNewCompanyId(null);
-                                        toast.success('Company setup completed successfully!');
-                                    }} />
-                                )}
+                                <CompanySetup 
+                                    onComplete={handleCompanySetupComplete} 
+                                    showBackButton={false}
+                                />
                             </div>
                         ) : selectedJobId ? (
                             <div className="bg-white rounded-lg shadow-sm border p-6">
@@ -481,7 +648,10 @@ const JobsPage = () => {
                                     <h1 className="text-2xl font-bold">Job Details</h1>
                                     <div className="w-10"></div> {/* For alignment */}
                                 </div>
-                                <JobDescription job={selectedJobData} />
+                                <JobDescription 
+                                    job={selectedJobData} 
+                                    hideApplyButton={shouldHideApplyButton}
+                                />
                             </div>
                         ) : (
                             !showApplicants && (
@@ -490,45 +660,102 @@ const JobsPage = () => {
                                         {activeTab === 'your-jobs' ? (
                                             userJobs.length > 0 ? (
                                                 userJobs.map((job) => (
-                                                    <div key={job._id} className="border rounded-lg p-6 hover:bg-muted/50 transition-colors h-full flex flex-col w-full">
+                                                    <div key={job._id} className="border border-gray-200 rounded-lg p-6 hover:shadow-md transition-all duration-200 bg-white flex flex-col w-full">
                                                         <div className="flex-grow">
-                                                            <h3 className="font-medium text-lg">{job.title}</h3>
-                                                            <p className="text-sm text-muted-foreground font-medium mt-1">{job.company?.name}</p>
-                                                            <p className="text-sm text-muted-foreground">{job.location}</p>
-                                                            <p className="text-sm text-muted-foreground mt-2">
-                                                                {job.applications?.length || 0} applicants
+                                                            <div className="flex items-start justify-between">
+                                                                <div>
+                                                                    <h3 className="font-bold text-lg text-gray-800">{job.title || 'Untitled Position'}</h3>
+                                                                    <p className="text-sm text-blue-600 font-medium mt-1">{job.company?.name || 'No Company'}</p>
+                                                                    <div className="flex items-center gap-2 mt-2">
+                                                                        <span className="text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">{job.jobType || 'Full-time'}</span>
+                                                                        <span className="text-sm text-gray-500">•</span>
+                                                                        <span className="text-sm text-gray-600">{job.location || 'Location not specified'}</span>
+                                                                    </div>
+                                                                    <div className="mt-3 flex items-center">
+                                                                        <Briefcase className="h-4 w-4 text-gray-400 mr-1" />
+                                                                        <span className="text-sm text-gray-600">
+                                                                            {job.applications?.length || 0} {job.applications?.length === 1 ? 'applicant' : 'applicants'}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-0.5 rounded-full">
+                                                                    {job.status || 'Active'}
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            <p className="text-sm text-gray-600 mt-3 line-clamp-2">
+                                                                {job.description || 'No description provided.'}
                                                             </p>
                                                         </div>
-                                                        <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t">
+                                                        
+                                                        <div className="flex flex-wrap gap-3 mt-5 pt-4 border-t border-gray-100">
                                                             <Button 
                                                                 variant="outline" 
                                                                 size="sm"
-                                                                className="flex-1 min-w-[120px]"
+                                                                className="flex-1 min-w-[140px] bg-blue-50 hover:bg-blue-100 border-blue-200 text-blue-700 hover:text-blue-800 font-medium"
                                                                 onClick={(e) => {
-                                                                    console.log('View Applicants clicked for job:', job._id);
                                                                     e.preventDefault();
                                                                     e.stopPropagation();
+                                                                    console.log('Viewing applicants for job:', job._id);
                                                                     fetchApplicants(job._id, job);
                                                                 }}
                                                             >
-                                                                View Applicants
+                                                                <Users className="h-4 w-4 mr-2" />
+                                                                {job.applications?.length > 0 ? (
+                                                                    <span>View {job.applications.length} {job.applications.length === 1 ? 'Applicant' : 'Applicants'}</span>
+                                                                ) : (
+                                                                    <span>No Applicants</span>
+                                                                )}
                                                             </Button>
                                                             <Button 
                                                                 variant="default" 
                                                                 size="sm"
                                                                 className="flex-1 min-w-[120px]"
-                                                                onClick={() => handleJobSelect(job)}
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    handleJobSelect(job);
+                                                                }}
                                                             >
+                                                                <Eye className="h-4 w-4 mr-2" />
                                                                 View Details
                                                             </Button>
                                                         </div>
                                                     </div>
                                                 ))
                                             ) : (
-                                                <div className="w-full text-center py-8">
-                                                    <p className="text-muted-foreground">You haven't posted any jobs yet.</p>
+                                                <div className="w-full text-center py-12 bg-white rounded-lg border-2 border-dashed border-gray-300">
+                                                    <Briefcase className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                                                    <h3 className="text-lg font-medium text-gray-900 mb-1">No jobs posted yet</h3>
+                                                    <p className="text-gray-500 mb-4">Get started by posting your first job</p>
+                                                    <Button 
+                                                        variant="default" 
+                                                        onClick={() => setActiveTab('post')}
+                                                        className="bg-blue-600 hover:bg-blue-700"
+                                                    >
+                                                        <Pencil className="h-4 w-4 mr-2" />
+                                                        Post a Job
+                                                    </Button>
                                                 </div>
                                             )
+                                        ) : activeTab === 'my-jobs' ? (
+                                            <div className="bg-white rounded-lg shadow-sm border p-4">
+                                                <h2 className="text-xl font-semibold mb-4">My Applied Jobs</h2>
+                                                {isLoadingAppliedJobs ? (
+                                                    <div className="text-center py-8">
+                                                        <Loader2 className="h-8 w-8 text-gray-400 animate-spin mx-auto mb-2" />
+                                                        <p className="text-sm text-gray-500">Loading your applied jobs...</p>
+                                                    </div>
+                                                ) : allAppliedJobs?.length > 0 ? (
+                                                    <AppliedJobTable />
+                                                ) : (
+                                                    <div className="text-center py-8">
+                                                        <Briefcase className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                                                        <h3 className="text-lg font-medium text-gray-900 mb-1">No applied jobs found</h3>
+                                                        <p className="text-gray-500">Start applying to jobs to see them here</p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         ) : (
                                             // Regular job listings
                                             filteredJobs.length > 0 ? (
@@ -553,7 +780,7 @@ const JobsPage = () => {
                         )}
                         
                         {/* Applicants List */}
-                        {showApplicants && (
+                        {showApplicants && selectedJobData && (
                             <div className="w-full bg-white rounded-lg shadow-sm border p-6">
                                 <div className="flex items-center mb-6">
                                     <Button 
@@ -569,88 +796,16 @@ const JobsPage = () => {
                                     </h2>
                                 </div>
                                 
-                                {currentApplicants.length > 0 ? (
-                                    <div className="border rounded-md
-                                    ">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="w-[150px]">Profile</TableHead>
-                                                    <TableHead>Name</TableHead>
-                                                    <TableHead>Email</TableHead>
-                                                    <TableHead>Applied On</TableHead>
-                                                    <TableHead>Resume</TableHead>
-                                                    <TableHead>Status</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {currentApplicants.map((application) => (
-                                                    <TableRow key={application._id}>
-                                                        <TableCell>
-                                                            <div className="flex items-center gap-2">
-                                                                {application.applicant?.profile?.profilePhoto ? (
-                                                                    <img 
-                                                                        src={application.applicant.profile.profilePhoto} 
-                                                                        alt="Profile" 
-                                                                        className="w-10 h-10 rounded-full object-cover" 
-                                                                    />
-                                                                ) : (
-                                                                    <Avatar className="w-10 h-10 flex items-center justify-center bg-gray-100 rounded-full">
-                                                                        {(application.applicant?.profile?.fullname || 'U').charAt(0).toUpperCase()}
-                                                                    </Avatar>
-                                                                )}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="font-medium">
-                                                            {application.applicant?.profile?.fullname || 'Anonymous'}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {application.applicant?.email || 'N/A'}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {new Date(application.createdAt).toLocaleDateString()}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {application.applicant?.profile?.resume ? (
-                                                                <a 
-                                                                    href={application.applicant.profile.resume} 
-                                                                    target="_blank" 
-                                                                    rel="noopener noreferrer"
-                                                                    className="text-blue-600 hover:underline text-sm"
-                                                                >
-                                                                    View Resume
-                                                                </a>
-                                                            ) : (
-                                                                <span className="text-muted-foreground text-sm">No resume</span>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            <div className="flex items-center gap-2">
-                                                                <CheckCircle2 
-                                                                    className="h-5 w-5 text-green-500 cursor-pointer hover:text-green-600" 
-                                                                    onClick={() => updateApplicationStatus(application._id, 'Accepted')}
-                                                                />
-                                                                <XCircle 
-                                                                    className="h-5 w-5 text-red-500 cursor-pointer hover:text-red-600" 
-                                                                    onClick={() => updateApplicationStatus(application._id, 'Rejected')}
-                                                                />
-                                                            </div>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-12 border rounded-md">
-                                        <p className="text-muted-foreground">No applicants found for this job.</p>
-                                    </div>
-                                )}
+                                <ApplicantsList 
+                                    applicants={currentApplicants}
+                                    onBack={handleBackToJobs}
+                                    onUpdateStatus={updateApplicationStatus}
+                                />
                             </div>
                         )}
                         
                         {/* Post Job Form */}
-                        {activeTab === 'post-job' && (
+                        {activeTab === 'post' && (
                             <Card>
                                 <CardContent className="p-6">
                                     <form onSubmit={handleJobSubmit} className="space-y-4">

@@ -112,22 +112,32 @@ export const login = async (req, res) => {
         console.log('\n=== LOGIN REQUEST ===');
         console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
         
-        const { email, password } = req.body;
+        const { identifier, password } = req.body; // Changed from email to identifier
         
         // Validate required fields
-        if (!email || !password) {
+        if (!identifier || !password) {
             return res.status(400).json({
-                message: "Something is missing",
+                message: "Email/Username and password are required",
                 success: false
             });
         }
         
-        console.log('Looking for user with email:', email);
-        let user = await User.findOne({ email });
+        console.log('Looking for user with identifier:', identifier);
+        
+        // Check if the identifier is an email or username
+        const isEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier);
+        
+        let user;
+        if (isEmail) {
+            user = await User.findOne({ email: identifier });
+        } else {
+            user = await User.findOne({ username: identifier });
+        }
+        
         if (!user) {
-            console.log('No user found with email:', email);
+            console.log('No user found with identifier:', identifier);
             return res.status(400).json({
-                message: "Incorrect email or password.",
+                message: "Incorrect email/username or password.",
                 success: false
             });
         }
@@ -137,7 +147,7 @@ export const login = async (req, res) => {
         if (!isPasswordMatch) {
             console.log('Password does not match');
             return res.status(400).json({
-                message: "Incorrect email or password.",
+                message: "Incorrect email/username or password.",
                 success: false
             });
         }
@@ -153,14 +163,14 @@ export const login = async (req, res) => {
             _id: user._id,
             fullname: user.fullname,
             email: user.email,
+            username: user.username, // Include username in the response
             phoneNumber: user.phoneNumber,
-            // Role field removed
             profile: user.profile
         };
         
         console.log('Login successful for user:', user.email);
         return res.status(200).json({
-            message: `Welcome back ${user.fullname}`,
+            message: `Welcome back ${user.fullname || user.username}`,
             user: userData,
             success: true
         });

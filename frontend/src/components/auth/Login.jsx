@@ -1,4 +1,4 @@
-import { GoogleLogin } from "@react-oauth/google";
+import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from "jwt-decode";
 import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -12,11 +12,10 @@ import { useDispatch, useSelector } from "react-redux";
 import { setLoading, setUser } from "@/redux/authSlice";
 import { Loader2 } from "lucide-react";
 
-
 const Login = () => {
   
     const [input, setInput] = useState({
-    identifier: "", // Can be either email or username
+    identifier: "", // Can be email or username
     password: "",
   });
 
@@ -38,10 +37,17 @@ const Login = () => {
 
   const HandleLogin = async (e) => {
     e.preventDefault();
+    
+    // Basic validation
+    if (!input.identifier || !input.password) {
+      toast.error("Please enter both email/username and password");
+      return;
+    }
+    
     dispatch(setLoading(true));
     try {
-            const res = await apiClient.post('/api/v1/user/login', {
-        email: input.identifier, // The backend expects an 'email' field.
+      const res = await apiClient.post('/user/login', {
+        identifier: input.identifier, // Changed from email to identifier
         password: input.password,
       });
 
@@ -52,8 +58,10 @@ const Login = () => {
         navigate(redirectTo);
       }
     } catch (error) {
-      // The apiClient interceptor will automatically show a toast error.
-      console.error("Login failed:", error.response?.data || error.message);
+      // Show specific error message from backend if available
+      const errorMessage = error.response?.data?.message || "Login failed. Please check your credentials.";
+      toast.error(errorMessage);
+      console.error("Login error:", error.response?.data || error.message);
     } finally {
       dispatch(setLoading(false));
     }
@@ -65,120 +73,35 @@ const Login = () => {
     }
   }, [user, navigate]);
 
-  const handleGoogleLogin = async (response) => {
+  const handleGoogleLogin = async (credentialResponse) => {
     try {
-      // Show loading state
       dispatch(setLoading(true));
       
-      console.log('Google login response:', response);
-      
       // Decode the JWT token from Google
-      const { credential } = response;
-      if (!credential) {
-        const errorMsg = "Google login failed: No credential received";
-        console.error(errorMsg);
-        toast.error(errorMsg);
-        return;
-      }
-      
-      // Decode the JWT token to get user info
-      let decodedToken;
-      try {
-        decodedToken = jwtDecode(credential);
-        console.log('Decoded Google token:', decodedToken);
-      } catch (decodeError) {
-        console.error('Error decoding Google token:', decodeError);
-        toast.error("Failed to process Google login. Please try again.");
-        return;
-      }
-      
-      const { email, name, picture } = decodedToken;
-      
-      if (!email || !name) {
-        const errorMsg = "Could not get required user information from Google";
-        console.error(errorMsg, { email, name });
-        toast.error(errorMsg);
-        return;
-      }
+      const decoded = jwtDecode(credentialResponse.credential);
+      const { email, name, picture } = decoded;
 
-      console.log('Sending Google login to backend with:', { email, name, picture });
-      
-      // Send user info to our backend
-      let res;
-      try {
-        res = await apiClient.post('/google-login', {
-          email,
-          name,
-          profilePhoto: picture
-        });
-        console.log('Backend response:', res.data);
-      } catch (apiError) {
-        console.error('API Error during Google login:', {
-          message: apiError.message,
-          response: apiError.response?.data,
-          status: apiError.response?.status
-        });
-        throw apiError; // Let the catch block handle it
-      }
+      // Send the credential to your backend for verification
+      const response = await apiClient.post('/auth/google', {
+        credential: credentialResponse.credential
+      });
 
-      if (res.data && res.data.success) {
-        const userData = res.data.user;
-        console.log('Google login successful, user data:', userData);
-        
-        if (!userData || !userData._id) {
-          throw new Error('Invalid user data received from server');
-        }
-        
-        // Update Redux store with user data
-        dispatch(setUser(userData));
-        
-        // Store user data in localStorage for persistence
-        localStorage.setItem('user', JSON.stringify(userData));
-        
-        // Show success message
-        toast.success(res.data.message || "Successfully logged in with Google");
-        
-        // Redirect to home or intended URL
+      if (response.data.success) {
+        dispatch(setUser(response.data.user));
+        toast.success("Successfully logged in with Google");
         const redirectTo = location.state?.from?.pathname || '/';
-        console.log('Redirecting to:', redirectTo);
         navigate(redirectTo);
-      } else {
-        const errorMessage = res?.data?.message || "Google login failed - No success response";
-        console.error("Google login failed:", { 
-          response: res?.data,
-          status: res?.status,
-          statusText: res?.statusText
-        });
-        throw new Error(errorMessage);
       }
     } catch (error) {
-      console.error("Google Login Error:", {
-        message: error.message,
-        response: error.response?.data,
-        stack: error.stack
-      });
-      
-      let errorMessage = "An error occurred during Google login. Please try again.";
-      
-      if (error.response) {
-        // The request was made and the server responded with a status code
-        // that falls out of the range of 2xx
-        errorMessage = error.response.data?.message || 
-                      `Server responded with ${error.response.status}: ${error.response.statusText}`;
-      } else if (error.request) {
-        // The request was made but no response was received
-        console.error('No response received:', error.request);
-        errorMessage = "No response from server. Please check your connection.";
-      }
-      
-      toast.error(errorMessage);
+      console.error('Google login error:', error);
+      toast.error(error.response?.data?.message || 'Google login failed');
     } finally {
       dispatch(setLoading(false));
     }
   };
 
   return (
-    <>
+    <GoogleOAuthProvider clientId="689062314057-6j3nbkadvp52ko4tsklj69me9j74oc18.apps.googleusercontent.com">
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         {/* Logo Container - Similar to LinkedIn */}
         <div className="w-full max-w-md px-8 py-6">
@@ -200,11 +123,13 @@ const Login = () => {
             <div>
               <Label className="block text-sm font-medium text-gray-700 mb-1">Email or Username</Label>
               <Input
-                type="text"
-                value={input.identifier}
+                id="identifier"
                 name="identifier"
+                type="text"
+                placeholder="Enter your email or username"
+                value={input.identifier}
                 onChange={changeEventHandler}
-                placeholder="Email or Username"
+                required
                 className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
@@ -251,14 +176,20 @@ const Login = () => {
           <div className="space-y-4">
             <GoogleLogin
               onSuccess={handleGoogleLogin}
-              onError={() => toast.error("Google Login Failed")}
-              shape="rectangular"
-              size="large"
-              width="100%"
-              text="signin_with"
+              onError={() => {
+                console.log('Login Failed');
+                toast.error('Google login failed. Please try again.');
+              }}
+              useOneTap
+              auto_select
               theme="outline"
+              size="large"
+              text="continue_with"
+              shape="rectangular"
+              width="100%"
               className="w-full"
             />
+
             <p className="text-xs text-gray-500 text-center mt-4">
               By clicking Continue with Google, you agree to our User Agreement and Privacy Policy.
             </p>
@@ -275,7 +206,7 @@ const Login = () => {
           </div>
         </div>
       </div>
-    </>
+    </GoogleOAuthProvider>
   );
 };
 

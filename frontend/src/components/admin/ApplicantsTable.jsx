@@ -16,7 +16,7 @@ const ApplicantsTable = () => {
 
   const fetchAllApplicants = async () => {
     try {
-      const res = await apiClient.get(`/api/v1/application/${applicants?._id}/applicants`, { withCredentials: true });
+      const res = await apiClient.get(`/application/${applicants?._id}/applicants`, { withCredentials: true });
       dispatch(setAllApplicants(res.data.job));
     } catch (error) {
       console.log(error);
@@ -25,7 +25,7 @@ const ApplicantsTable = () => {
 
   const statusHandler = async (status, id) => {
     try {
-      const res = await apiClient.post(`/api/v1/application/update-status/${id}`, { status });
+      const res = await apiClient.post(`/application/update-status/${id}`, { status });
       if (res.data.success) {
         toast.success(res.data.message);
         fetchAllApplicants();

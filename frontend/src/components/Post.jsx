@@ -39,7 +39,7 @@ const Post = ({ post, refreshPosts }) => {
 
   const handleDelete = async (postId) => {
     try {
-      await apiClient.delete(`/api/v1/posts/${postId}`);
+      await apiClient.delete(`/posts/${postId}`);
       toast.success("Post deleted successfully ✅");
       refreshPosts();
     } catch (error) {

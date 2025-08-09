@@ -9,13 +9,6 @@ import { Pencil, Briefcase, Bookmark, Star, MapPin } from "lucide-react";
 const MobileSidebar = ({ onClose, onEditClick, onLogout, profile }) => {
   const loggedInUser = useSelector((state) => state.auth.user);
   
-  // Debug: Log the received props
-  useEffect(() => {
-    console.log('=== MOBILE SIDEBAR RENDERED ===');
-    console.log('Profile prop:', profile);
-    console.log('Logged in user:', loggedInUser);
-  }, [profile, loggedInUser]);
-  
   // Use profile from props if available, otherwise use loggedInUser.profile
   const displayProfile = profile || loggedInUser?.profile || {};
 
@@ -29,28 +22,24 @@ const MobileSidebar = ({ onClose, onEditClick, onLogout, profile }) => {
 
   // Get the display headline with fallbacks
   const getDisplayHeadline = () => {
-    // First priority: Direct profile prop
     if (profile?.headline) return profile.headline;
-    
-    // Second priority: User's profile data
     if (loggedInUser?.profile?.headline) return loggedInUser.profile.headline;
-    
-    // Third priority: Direct user headline
     if (loggedInUser?.headline) return loggedInUser.headline;
-    
-    // Fourth priority: About section as fallback
     if (profile?.about) {
       return profile.about.length > 100 
         ? profile.about.substring(0, 100) + '...' 
         : profile.about;
     }
-    
-    // Final fallback
     return 'Update your profile to add a headline';
   };
 
-  // Calculate height to be viewport height minus navbar height (4rem = 64px)
-  const sidebarHeight = 'calc(100vh - 4rem)';
+  // Prevent body scroll when sidebar is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[9999] overflow-hidden">
@@ -60,111 +49,111 @@ const MobileSidebar = ({ onClose, onEditClick, onLogout, profile }) => {
         onClick={onClose}
       />
       
-      {/* Sidebar with slide-in animation */}
-      <div 
-        className="fixed right-0 w-4/5 max-w-sm bg-white dark:bg-gray-900 shadow-xl overflow-y-auto transform transition-transform duration-300 ease-in-out z-[9999]"
-        style={{ 
-          top: '4rem', // Position below navbar (h-16 = 4rem)
-          height: sidebarHeight,
-          maxHeight: sidebarHeight
-        }}
-      >
-        <div className="w-full">
-          {/* Main Card */}
-          <Card className="overflow-visible border-0 rounded-none shadow-none">
-            {/* Cover Photo */}
-            <div className="h-20 bg-gradient-to-r from-blue-500 to-blue-600 relative">
-              <div className="absolute inset-0 bg-black/10 hover:bg-black/20 transition-colors duration-200" />
-            </div>
-            
-            {/* Profile Section */}
-            <div className="px-4 pb-4 -mt-10 relative">
-              <div className="flex justify-center">
-                <div className="relative group">
-                  <Avatar 
-                    className="h-20 w-20 border-4 border-white shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200"
+      {/* Sidebar container */}
+      <div className="fixed inset-0 z-[9999] flex flex-col" style={{ top: '4rem' }}>
+        {/* Sidebar with fixed height and internal scrolling */}
+        <div 
+          className="w-full max-w-sm ml-auto bg-white dark:bg-gray-900 shadow-xl flex flex-col h-[calc(100vh-4rem)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Scrollable content area */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden">
+            {/* Main Card */}
+            <Card className="overflow-visible border-0 rounded-none shadow-none">
+              {/* Cover Photo */}
+              <div className="h-20 bg-gradient-to-r from-blue-500 to-blue-600 relative">
+                <div className="absolute inset-0 bg-black/10 hover:bg-black/20 transition-colors duration-200" />
+              </div>
+              
+              {/* Profile Section */}
+              <div className="px-4 pb-4 -mt-10 relative">
+                <div className="flex justify-center">
+                  <div className="relative group">
+                    <Avatar 
+                      className="h-20 w-20 border-4 border-white shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200"
+                      onClick={() => {
+                        onEditClick();
+                        onClose();
+                      }}
+                    >
+                      <AvatarImage 
+                        src={displayProfile.profilePhoto || loggedInUser?.profile?.profilePhoto} 
+                        alt={displayProfile.fullname || loggedInUser?.fullname || 'User'}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="text-xl font-bold bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                        {getInitials(displayProfile.fullname || loggedInUser?.fullname || '')}
+                      </AvatarFallback>
+                      <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <Pencil className="h-5 w-5 text-white" />
+                      </div>
+                    </Avatar>
+                  </div>
+                </div>
+                
+                <div className="text-center mt-4">
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                    {displayProfile.fullname || loggedInUser?.fullname || 'Your Name'}
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2 min-h-[20px]">
+                    {getDisplayHeadline()}
+                  </p>
+                  
+                  <div className="mt-2 text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center">
+                    <MapPin className="h-4 w-4 mr-1" />
+                    <span>{displayProfile.location || loggedInUser?.profile?.location || 'Add location'}</span>
+                  </div>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="mt-4 w-full border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 transition-colors duration-200"
                     onClick={() => {
                       onEditClick();
                       onClose();
                     }}
                   >
-                    <AvatarImage 
-                      src={displayProfile.profilePhoto || loggedInUser?.profile?.profilePhoto} 
-                      alt={displayProfile.fullname || loggedInUser?.fullname || 'User'}
-                      className="object-cover"
-                    />
-                    <AvatarFallback className="text-xl font-bold bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                      {getInitials(displayProfile.fullname || loggedInUser?.fullname || '')}
-                    </AvatarFallback>
-                    <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      <Pencil className="h-5 w-5 text-white" />
-                    </div>
-                  </Avatar>
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit Profile
+                  </Button>
                 </div>
               </div>
-              
-              <div className="text-center mt-4">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                  {displayProfile.fullname || loggedInUser?.fullname || 'Your Name'}
-                </h2>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2 min-h-[20px]">
-                  {getDisplayHeadline()}
-                </p>
-                
-                <div className="mt-2 text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center">
-                  <MapPin className="h-4 w-4 mr-1" />
-                  <span>{displayProfile.location || loggedInUser?.profile?.location || 'Add location'}</span>
+
+              <div className="border-t border-gray-100 dark:border-gray-800 px-4 py-3">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <span>Connections</span>
+                  <span className="font-medium text-blue-600 dark:text-blue-400">0</span>
                 </div>
-                
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="mt-4 w-full border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-900/20 flex items-center justify-center gap-2 transition-colors duration-200"
-                  onClick={() => {
-                    onEditClick();
-                    onClose();
-                  }}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Edit Profile
-                </Button>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Grow your network</p>
               </div>
-            </div>
 
-            <div className="border-t border-gray-100 dark:border-gray-800 px-4 py-3">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-300">
-                <span>Connections</span>
-                <span className="font-medium text-blue-600 dark:text-blue-400">0</span>
+              <div className="border-t border-gray-100 dark:border-gray-800 p-4">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Access exclusive tools & insights</p>
+                <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+                  <Star className="h-4 w-4 text-yellow-500 flex-shrink-0" />
+                  <span>Try Premium for free</span>
+                </div>
               </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Grow your network</p>
-            </div>
+            </Card>
 
-            <div className="border-t border-gray-100 dark:border-gray-800 p-4">
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Access exclusive tools & insights</p>
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-200">
-                <Star className="h-4 w-4 text-yellow-500 flex-shrink-0" />
-                <span>Try Premium for free</span>
+            {/* My Items Section */}
+            <Card className="mx-4 my-4 p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-medium text-gray-700 dark:text-gray-200">My Items</h3>
+                <Bookmark className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
               </div>
-            </div>
-          </Card>
+              <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">
+                <Briefcase className="h-4 w-4 flex-shrink-0" />
+                <span>My Jobs</span>
+              </div>
+            </Card>
+          </div>
 
-          {/* My Items Section */}
-          <Card className="m-4 p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-medium text-gray-700 dark:text-gray-200">My Items</h3>
-              <Bookmark className="h-4 w-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            </div>
-            <div className="flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 cursor-pointer hover:underline">
-              <Briefcase className="h-4 w-4 flex-shrink-0" />
-              <span>My Jobs</span>
-            </div>
-          </Card>
-
-          {/* Settings and Logout Section */}
-          <div className="border-t border-gray-200 dark:border-gray-800 p-4 space-y-2">
+          {/* Fixed bottom section for Settings and Logout */}
+          <div className="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-4">
             <Link 
               to="/settings" 
-              className="flex items-center gap-2 p-2 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 w-full"
+              className="flex items-center gap-2 p-2 rounded-md text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 w-full mb-2"
               onClick={onClose}
             >
               <Pencil className="h-4 w-4" />

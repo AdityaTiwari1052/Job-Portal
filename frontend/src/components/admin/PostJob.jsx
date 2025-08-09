@@ -57,7 +57,7 @@ const PostJob = () => {
                 position: Number(input.position)
             };
             
-            const res = await apiClient.post('/api/v1/job/post', jobData, {
+            const res = await apiClient.post('/job/post', jobData, {
                 headers: {
                     'Content-Type': 'application/json'
                 },

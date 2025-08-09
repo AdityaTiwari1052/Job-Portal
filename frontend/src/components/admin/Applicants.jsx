@@ -15,7 +15,7 @@ const Applicants = () => {
     useEffect(() => {
         const fetchAllApplicants = async () => {
             try {
-                const res = await apiClient.get(`/api/v1/application/get-all-applicants/${params.id}`, { withCredentials: true });
+                const res = await apiClient.get(`/application/get-all-applicants/${params.id}`, { withCredentials: true });
                 dispatch(setAllApplicants(res.data.job));
             } catch (error) {
                 console.log(error);

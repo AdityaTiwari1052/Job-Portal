@@ -14,6 +14,7 @@ const CompanyCreate = ({ onCompanyCreated }) => {
     const [companyName, setCompanyName] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const dispatch = useDispatch();
+    const navigate = useNavigate();
     
     const registerNewCompany = async () => {
         if (!companyName.trim()) {
@@ -23,7 +24,7 @@ const CompanyCreate = ({ onCompanyCreated }) => {
         
         try {
             setIsLoading(true);
-            const res = await apiClient.post('/api/v1/company/register', 
+            const res = await apiClient.post('/company/register', 
                 { companyName }, 
                 {
                     headers: { 'Content-Type': 'application/json' },

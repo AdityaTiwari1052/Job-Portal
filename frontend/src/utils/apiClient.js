@@ -12,6 +12,19 @@ const apiClient = axios.create({
   },
 });
 
+// Add request interceptor to log all outgoing requests
+apiClient.interceptors.request.use(
+  (config) => {
+    console.log('Request URL:', config.baseURL + config.url);
+    console.log('Request Headers:', config.headers);
+    return config;
+  },
+  (error) => {
+    console.error('Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
 // Response interceptor to handle common errors and authentication issues
 apiClient.interceptors.response.use(
   (response) => response, // Simply return successful responses

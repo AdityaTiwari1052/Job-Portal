@@ -19,7 +19,14 @@ const __dirname = path.dirname(__filename);
 dotenv.config({
   path: path.resolve(__dirname, '../.env')
 });
-
+console.log('Environment variables:', {
+  NODE_ENV: process.env.NODE_ENV || 'Not set',
+  PORT: process.env.PORT || 'Not set',
+  CLOUD_NAME: process.env.CLOUD_NAME ? 'Set' : 'Not set',
+  API_KEY: process.env.API_KEY ? 'Set' : 'Not set',
+  API_SECRET: process.env.API_SECRET ? 'Set' : 'Not set',
+  
+});
 const app = express();
 
 
@@ -41,7 +48,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'https://job-portal-v3b1.onrender.com',
-  'https://your-frontend-domain.com' // Replace with your actual frontend domain
+  'http://localhost:8000' // Add the backend URL
 ];
 
 // Configure CORS with enhanced security headers
@@ -170,7 +177,7 @@ const PORT = process.env.PORT || 8000;
 
 
 app.use("/api/v1/user", userRoute);
-app.use("/api/posts", postRoutes); 
+app.use("/api/v1/posts", postRoutes); 
 app.use("/api/v1/company", companyRoute);
 app.use("/api/v1/job", jobRoute);
 app.use("/api/v1/application", applicationRoute);

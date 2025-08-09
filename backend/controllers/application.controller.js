@@ -150,14 +150,40 @@ export const getApplicantsByJobId = async (req, res) => {
       });
     }
 
-    // Get applications and populate applicant profile
-    const applicants = await Application.find({ job: jobId })
-      .populate("applicant", "fullname username profile.email profile.profilePhoto profile.resume profile.resumeOriginalName profile.bio profile.skills")
+    // Get applications and populate applicant profile with all required fields
+    const applications = await Application.find({ job: jobId })
+      .populate({
+        path: 'applicant',
+        select: 'fullname username email profile',
+        populate: {
+          path: 'profile',
+          select: 'profilePhoto resume resumeOriginalName bio skills'
+        }
+      })
       .sort({ createdAt: -1 }); // Latest first
+
+    // Transform the data to match the frontend's expected format
+    const formattedApplicants = applications.map(app => ({
+      _id: app._id,
+      applicant: {
+        _id: app.applicant?._id,
+        name: app.applicant?.fullname || 'Anonymous',
+        email: app.applicant?.email || 'No email provided',
+        profilePhoto: app.applicant?.profile?.profilePhoto,
+        resume: app.applicant?.profile?.resume,
+        resumeOriginalName: app.applicant?.profile?.resumeOriginalName,
+        bio: app.applicant?.profile?.bio,
+        skills: app.applicant?.profile?.skills
+      },
+      appliedAt: app.createdAt,
+      coverLetter: app.coverLetter,
+      resume: app.applicant?.profile?.resume,
+      status: app.status || 'Pending'
+    }));
 
     return res.status(200).json({
       success: true,
-      applicants,
+      applicants: formattedApplicants,
     });
 
   } catch (error) {
