@@ -20,7 +20,7 @@ const useGetAllJobs = () => {
                     return;
                 }
                 
-                const res = await apiClient.get(`/api/v1/job/get?keyword=${searchedQuery || ''}`);
+                const res = await apiClient.get(`/job/get?keyword=${searchedQuery || ''}`);
                 console.log('Jobs API response:', res.data);
                 
                 if (res.data.success) {

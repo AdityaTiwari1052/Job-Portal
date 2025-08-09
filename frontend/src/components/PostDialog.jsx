@@ -13,7 +13,7 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useDispatch, useSelector } from "react-redux";
 import apiClient from "@/utils/apiClient";
-import { addPost } from "@/redux/postSlice"; // ✅ Import post action
+import { addPost } from "@/redux/postSlice"; // Import post action
 
 export function PostDialog({ setOpen, open, refreshPosts }) {
   const inputRef = useRef(null);
@@ -39,11 +39,24 @@ export function PostDialog({ setOpen, open, refreshPosts }) {
     try {
       const formData = new FormData();
       formData.append("description", inputText);
-      if (selectedFile) formData.append("image", selectedFile);
+      if (selectedFile) {
+        formData.append("image", selectedFile);
+      }
 
-      const { data } = await apiClient.post("/api/v1/posts", formData);
+      console.log('Creating post with:', {
+        description: inputText,
+        hasImage: !!selectedFile
+      });
 
-      dispatch(addPost(data.post)); // ✅ Dispatch new post
+      // Make sure we're using the correct endpoint without duplicating /api/v1
+      const { data } = await apiClient.post("/posts", formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      console.log('Post created successfully:', data);
+      dispatch(addPost(data.post));
       toast.success("Post created!");
       setOpen(false);
       setInputText("");
@@ -52,7 +65,8 @@ export function PostDialog({ setOpen, open, refreshPosts }) {
       if (refreshPosts) refreshPosts();
     } catch (error) {
       console.error("Post creation failed:", error);
-      toast.error("Failed to create post");
+      console.error("Error response:", error.response?.data);
+      toast.error(error.response?.data?.message || "Failed to create post");
     }
   };
 

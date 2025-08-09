@@ -19,14 +19,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({
   path: path.resolve(__dirname, '../.env')
 });
-console.log('Environment variables:', {
-  NODE_ENV: process.env.NODE_ENV || 'Not set',
-  PORT: process.env.PORT || 'Not set',
-  CLOUD_NAME: process.env.CLOUD_NAME ? 'Set' : 'Not set',
-  API_KEY: process.env.API_KEY ? 'Set' : 'Not set',
-  API_SECRET: process.env.API_SECRET ? 'Set' : 'Not set',
-  
-});
+
 const app = express();
 
 

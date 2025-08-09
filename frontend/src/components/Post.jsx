@@ -27,13 +27,13 @@ const Post = ({ post, refreshPosts }) => {
 
   const handleFollowToggle = async () => {
     try {
-      const res = await apiClient.post(`/api/v1/user/${post.user._id}/follow`);
+      const res = await apiClient.post(`/user/${post.user._id}/follow`);
       setIsFollowing(res.data.following);
       toast.success(res.data.following ? "Followed ✅" : "Unfollowed 🚫");
       refreshPosts();
     } catch (error) {
-      toast.error("Follow action failed ❌");
-      console.error("Error following/unfollowing user:", error);
+      console.error('Error following/unfollowing user:', error);
+      toast.error(error.response?.data?.message || "Failed to toggle follow status");
     }
   };
 

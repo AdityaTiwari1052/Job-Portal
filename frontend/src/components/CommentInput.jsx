@@ -23,10 +23,17 @@ const CommentInput = ({ postId }) => {
   if (!text.trim()) return;
 
   try {
-    const { data } = await apiClient.post(
-      `/api/v1/posts/${postId}/comments`,
-      { textMessage: text }
+    const response = await apiClient.post(
+      `/posts/${postId}/comments`,
+      { content: text },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
     );
+
+    const { data } = response;
 
     toast.success("Message sent");
     setText('');

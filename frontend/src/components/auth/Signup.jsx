@@ -57,9 +57,10 @@ const Signup = () => {
 
         try {
             dispatch(setLoading(true));
-            const res = await apiClient.post('/api/v1/user/register', formData, {
-                headers: { 'Content-Type': "multipart/form-data" },
-                withCredentials: true,
+            const res = await apiClient.post('/user/register', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data',
+                },
             });
 
             if (res.data.success) {

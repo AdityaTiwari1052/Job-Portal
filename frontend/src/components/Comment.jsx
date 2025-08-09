@@ -17,7 +17,12 @@ const Comment = ({ comment, postId }) => {
   const handleDelete = async () => {
     try {
       const { data } = await apiClient.delete(
-        `/api/v1/posts/${postId}/comments/${comment._id}`
+        `/posts/${postId}/comments/${comment._id}`,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
       toast.success("Comment deleted ✅");
       dispatch(updateSinglePost(data)); // updated post returned from backend

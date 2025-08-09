@@ -3,6 +3,7 @@ import { useParams, useNavigate, Outlet, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import apiClient from "@/utils/apiClient";
 import { setUser } from "@/redux/authSlice";
+import toast from 'react-hot-toast';
 
 // UI Components
 import { Button } from "@/components/ui/button";
@@ -120,13 +121,13 @@ const Profile = ({ refreshPosts }) => {
         if (!urlUsername && reduxUser) {
           try {
             // Get current user's profile
-            const currentUserRes = await apiClient.get("/api/v1/user/me");
+            const currentUserRes = await apiClient.get("/user/me");
             
             if (currentUserRes.data?.user) {
               setProfileUser(currentUserRes.data.user);
               
               // Fetch current user's posts
-              const postsRes = await apiClient.get("/api/v1/user/posts/me");
+              const postsRes = await apiClient.get("/user/posts/me");
               setUserPosts(postsRes.data.posts || []);
               return;
             }
@@ -144,7 +145,7 @@ const Profile = ({ refreshPosts }) => {
         if (urlUsername) {
           // First try to search for the user
           try {
-            const searchRes = await apiClient.get(`/api/v1/user/profile/${urlUsername}`);
+            const searchRes = await apiClient.get(`/user/profile/${urlUsername}`);
             
             if (searchRes.data?.users?.length > 0) {
               const foundUser = searchRes.data.users[0];
@@ -152,7 +153,7 @@ const Profile = ({ refreshPosts }) => {
               
               // Fetch user's posts
               try {
-                const postsRes = await apiClient.get(`/api/v1/posts/user/${foundUser._id}`);
+                const postsRes = await apiClient.get(`/posts/user/${foundUser._id}`);
                 setUserPosts(postsRes.data.posts || []);
               } catch (postsError) {
                 console.error("Error fetching user posts:", postsError);
@@ -208,14 +209,14 @@ const Profile = ({ refreshPosts }) => {
       dispatch(setUser({ ...reduxUser, following: newFollowing }));
 
       // 3. Make API call
-      await apiClient.post(`/api/v1/user/${profileUser._id}/follow`);
+      await apiClient.post(`/users/${profileUser._id}/follow`);
 
     } catch (error) {
       console.error("Failed to toggle follow:", error);
       // Rollback on error
       setProfileUser(originalProfileUser);
       dispatch(setUser(originalReduxUser));
-      alert(error.response?.data?.message || "An error occurred. Please try again.");
+      toast.error(error.response?.data?.message || "Failed to toggle follow status");
     }
   };
 

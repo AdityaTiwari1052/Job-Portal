@@ -124,18 +124,20 @@ const App = () => {
         if (token) {
           try {
             // Try to refresh the token
-            const response = await axios.post(
-              '/api/v1/user/refresh-token',
+            const refreshResponse = await apiClient.post(
+              '/user/refresh-token',
               {},
-              { 
+              {
                 withCredentials: true,
-                headers: { 'Content-Type': 'application/json' }
+                headers: {
+                  'Content-Type': 'application/json',
+                },
               }
             );
 
-            if (response.data.success) {
+            if (refreshResponse.data.success) {
               // Update the stored token
-              localStorage.setItem('token', response.data.token);
+              localStorage.setItem('token', refreshResponse.data.token);
               
               // If we have user data in localStorage, use it
               const storedUser = localStorage.getItem('user');
@@ -143,9 +145,9 @@ const App = () => {
                 dispatch(setUser(JSON.parse(storedUser)));
               } else {
                 // Fetch user data if not in localStorage
-                const userResponse = await apiClient.get('/api/v1/user/me', {
+                const userResponse = await apiClient.get('/user/me', {
                   headers: { 
-                    'Authorization': `Bearer ${response.data.token}`,
+                    'Authorization': `Bearer ${refreshResponse.data.token}`,
                     'Content-Type': 'application/json'
                   },
                   withCredentials: true

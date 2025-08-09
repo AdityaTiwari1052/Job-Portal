@@ -16,7 +16,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await apiClient.post('/api/v1/user/forgot-password', { email });
+      const res = await apiClient.post('/user/forgot-password', { email });
       
         toast.success(res.data.message);
         navigate("/verifyforgot-password", { state: { email } });

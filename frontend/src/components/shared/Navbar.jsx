@@ -30,7 +30,7 @@ const Navbar = ({ onProfileClick }) => {
 
   const fetchNotifications = async () => {
     try {
-      const { data } = await apiClient.get("/api/v1/user/notifications");
+      const { data } = await apiClient.get("/user/notifications");
       const notifs = data.notifications || [];
       setNotifications(notifs);
       setUnreadCount(notifs.filter(n => !n.read).length);
@@ -42,8 +42,9 @@ const Navbar = ({ onProfileClick }) => {
 
   const markAllAsRead = async () => {
     try {
-      await apiClient.put("/api/v1/user/notifications/mark-all-read", {});
-      fetchNotifications(); // Refresh UI immediately
+      await apiClient.put("/user/notifications/mark-all-read", {});
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setUnreadCount(0);
     } catch (error) {
       console.error("Error marking notifications as read", error);
       // Error handling is done by the API client interceptor
@@ -251,7 +252,7 @@ const SearchDialog = ({ onClose }) => {
     if (e.key === 'Enter' && query.trim()) {
       setUsers([]);
       try {
-        const response = await apiClient.get(`/api/v1/user/search/${query}`, {
+        const response = await apiClient.get(`/user/search/${query}`, {
           withCredentials: true
         });
         if (response.data.users.length === 0) {

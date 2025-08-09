@@ -7,7 +7,6 @@ import Comments from './Comments';
 import apiClient from '@/utils/apiClient';
 import { toast } from 'sonner';
 
-
 const SocialOptions = ({ post }) => {
   const user = useSelector((state) => state.auth.user);
   const [liked, setLiked] = useState(post.likes?.includes(user?._id));
@@ -31,14 +30,14 @@ const SocialOptions = ({ post }) => {
     setLikes(updatedLikes);
 
     try {
-      await apiClient.post(`/api/v1/posts/${post._id}/like`, {
+      await apiClient.post(`/posts/${post._id}/like`, {
         userId: user._id
       }, { withCredentials: true });
 
       toast.success(liked ? "Disliked post" : "Liked post");
 
       // Optionally fetch fresh likes count (if backend returns updated data)
-      const { data } = await apiClient.get(`/api/v1/posts/${post._id}`, {
+      const { data } = await apiClient.get(`/posts/${post._id}`, {
         withCredentials: true
       });
       setLikes(data.likes || []);

@@ -13,7 +13,7 @@ const VerifyOtp = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const res = await apiClient.post('/api/v1/user/verify-email', { email: user.email, otp });
+            const res = await apiClient.post('/user/verify-email', { email: user.email, otp });
             if (res.data.success) {
                 toast.success(res.data.message);
                 navigate('/');

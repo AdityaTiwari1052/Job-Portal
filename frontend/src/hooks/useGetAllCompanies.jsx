@@ -9,7 +9,7 @@ const useGetAllCompanies = () => {
     useEffect(()=>{
         const fetchCompanies = async () => {
             try {
-                const res = await apiClient.get('/api/v1/company/get', {withCredentials:true});
+                const res = await apiClient.get('/company/get', {withCredentials:true});
                 console.log('Companies API Response:', res.data);
                 if(res.data.success){
                     console.log('Dispatching companies:', res.data.companies);

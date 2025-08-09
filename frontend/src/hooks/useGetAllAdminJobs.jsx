@@ -9,7 +9,7 @@ const useGetAllAdminJobs = () => {
     useEffect(()=>{
         const fetchAllAdminJobs = async () => {
             try {
-                const res = await apiClient.get('/api/v1/job/get-admin-jobs', {withCredentials:true});
+                const res = await apiClient.get('/job/get-admin-jobs', {withCredentials:true});
                 if(res.data.success){
                     dispatch(setAllAdminJobs(res.data.jobs));
                 }
