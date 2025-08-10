@@ -6,8 +6,9 @@ import { setUser } from './redux/authSlice';
 import axios from 'axios';
 import apiClient from './utils/apiClient';
 import { toast } from 'sonner';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-// All your other imports...
+// Import components
 import Layout from "./Layout";
 import Navbar from "./components/shared/Navbar";
 import Login from "./components/auth/Login";
@@ -27,9 +28,8 @@ import Network from "./components/Network";
 import Applicants from "./components/admin/Applicants";
 import DebugInfo from "./components/DebugInfo";
 
-// ... (rest of your imports)
-
-const appRouter = createBrowserRouter([
+// Create router configuration
+const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/home" /> },
   {
     path: "/",
@@ -60,12 +60,30 @@ const appRouter = createBrowserRouter([
       {
         path: "profile/:username",
         element: <Profile />,
-        children: [{ path: "edit", element: <EditProfile /> }],
+        children: [
+          { 
+            path: "edit", 
+            element: (
+              <ProtectedRoute>
+                <EditProfile />
+              </ProtectedRoute>
+            ) 
+          }
+        ],
       },
       {
         path: "profile/id/:id",
         element: <Profile />,
-        children: [{ path: "edit", element: <EditProfile /> }],
+        children: [
+          { 
+            path: "edit", 
+            element: (
+              <ProtectedRoute>
+                <EditProfile />
+              </ProtectedRoute>
+            ) 
+          }
+        ],
       },
       {
         path: "admin/companies",
@@ -89,7 +107,6 @@ const appRouter = createBrowserRouter([
           <ProtectedRoute>
             <div className="container mx-auto p-4">
               <h1 className="text-2xl font-bold mb-4">Job Applicants</h1>
-              {/* This will be handled by the Applicants component */}
               <Applicants />
             </div>
           </ProtectedRoute>
@@ -109,16 +126,26 @@ const appRouter = createBrowserRouter([
   { path: "/signup", element: <Signup /> },
   { path: "/forgot-password", element: <ForgotPassword /> },
   { path: "/verifyforgot-password", element: <VerifyforgotPassword /> },
-  
 ]);
 
-const App = () => {
+// Main App component wrapped with AuthProvider
+function AppWrapper() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  );
+}
+
+// App component with auth check
+function App() {
   const dispatch = useDispatch();
   const [isAuthChecked, setIsAuthChecked] = useState(false);
+  const { checkAuth } = useAuth();
 
   // Check for existing session on app load
   useEffect(() => {
-    const checkAuth = async () => {
+    const verifyAuth = async () => {
       try {
         const token = localStorage.getItem('token');
         if (token) {
@@ -136,65 +163,41 @@ const App = () => {
             );
 
             if (refreshResponse.data.success) {
-              // Update the stored token
               localStorage.setItem('token', refreshResponse.data.token);
               
-              // If we have user data in localStorage, use it
               const storedUser = localStorage.getItem('user');
               if (storedUser) {
                 dispatch(setUser(JSON.parse(storedUser)));
-              } else {
-                // Fetch user data if not in localStorage
-                const userResponse = await apiClient.get('/user/me', {
-                  headers: { 
-                    'Authorization': `Bearer ${refreshResponse.data.token}`,
-                    'Content-Type': 'application/json'
-                  },
-                  withCredentials: true
-                });
-                
-                if (userResponse.data.success) {
-                  localStorage.setItem('user', JSON.stringify(userResponse.data.user));
-                  dispatch(setUser(userResponse.data.user));
-                }
               }
             }
           } catch (error) {
             console.error('Token refresh failed:', error);
-            // If token refresh fails, clear auth state
-            if (error.response?.status === 401) {
-              localStorage.removeItem('token');
-              localStorage.removeItem('user');
-              dispatch(setUser(null));
-            }
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
           }
         }
       } catch (error) {
         console.error('Auth check failed:', error);
       } finally {
-        // Mark auth check as complete
         setIsAuthChecked(true);
       }
     };
 
-    checkAuth();
+    verifyAuth();
   }, [dispatch]);
 
-  // Show loading state while checking auth
   if (!isAuthChecked) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
+    return <div>Loading...</div>;
   }
 
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-      <RouterProvider router={appRouter} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
       <DebugInfo />
     </ThemeProvider>
   );
-};
+}
 
-export default App;
+export default AppWrapper;

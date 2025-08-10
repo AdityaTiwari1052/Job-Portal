@@ -167,43 +167,35 @@ const Layout = () => {
         )}
 
         {/* Main Content */}
-        <div className={`flex-1 ${showEditProfile ? 'max-w-4xl mx-auto' : ''} w-full`}>
+        <div className="flex-1 w-full">
           <div className="h-full flex flex-col">
-            <div className={`${showEditProfile ? 'bg-white dark:bg-gray-800 rounded-lg shadow-md p-6' : ''} flex-1`}>
+            <div className={`${showEditProfile ? 'bg-white dark:bg-gray-800' : ''} flex-1`}>
               {showEditProfile ? (
-                <>
-                  <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-2xl font-bold">Edit Profile</h1>
-                    <Button variant="ghost" size="icon" onClick={closeEditProfile}>
-                      <X className="h-5 w-5" />
-                    </Button>
-                  </div>
-                  <EditProfile 
-                    onClose={closeEditProfile} 
-                    user={user} 
-                    onProfileUpdate={(updatedProfile) => {
-                      console.log('=== PROFILE UPDATE RECEIVED IN LAYOUT ===');
-                      console.log('Updated profile data from EditProfile:', updatedProfile);
-                      console.log('Current profile data in Layout:', profileData);
-                      
-                      // Update the local profile data when EditProfile updates it
-                      const newProfileData = {
-                        ...profileData, // Keep existing data
-                        ...updatedProfile,
-                        // Only update if the value is defined
-                        fullname: updatedProfile.fullname !== undefined ? updatedProfile.fullname : profileData.fullname,
-                        headline: updatedProfile.headline !== undefined ? updatedProfile.headline : profileData.headline,
-                        location: updatedProfile.location !== undefined ? updatedProfile.location : profileData.location,
-                        about: updatedProfile.about !== undefined ? updatedProfile.about : profileData.about,
-                        pronouns: updatedProfile.pronouns !== undefined ? updatedProfile.pronouns : profileData.pronouns,
-                        profilePhoto: updatedProfile.profilePhoto !== undefined ? updatedProfile.profilePhoto : profileData.profilePhoto
-                      };
-                      
-                      console.log('New profile data after update:', newProfileData);
-                      setProfileData(newProfileData);
-                    }} 
-                  />
-                </>
+                <EditProfile 
+                  onClose={closeEditProfile} 
+                  user={user} 
+                  onProfileUpdate={(updatedProfile) => {
+                    console.log('=== PROFILE UPDATE RECEIVED IN LAYOUT ===');
+                    console.log('Updated profile data from EditProfile:', updatedProfile);
+                    console.log('Current profile data in Layout:', profileData);
+                    
+                    // Update the local profile data when EditProfile updates it
+                    const newProfileData = {
+                      ...profileData, // Keep existing data
+                      ...updatedProfile,
+                      // Only update if the value is defined
+                      fullname: updatedProfile.fullname !== undefined ? updatedProfile.fullname : profileData.fullname,
+                      headline: updatedProfile.headline !== undefined ? updatedProfile.headline : profileData.headline,
+                      location: updatedProfile.location !== undefined ? updatedProfile.location : profileData.location,
+                      about: updatedProfile.about !== undefined ? updatedProfile.about : profileData.about,
+                      pronouns: updatedProfile.pronouns !== undefined ? updatedProfile.pronouns : profileData.pronouns,
+                      profilePhoto: updatedProfile.profilePhoto !== undefined ? updatedProfile.profilePhoto : profileData.profilePhoto
+                    };
+                    
+                    console.log('New profile data after update:', newProfileData);
+                    setProfileData(newProfileData);
+                  }} 
+                />
               ) : (
                 <Outlet />
               )}

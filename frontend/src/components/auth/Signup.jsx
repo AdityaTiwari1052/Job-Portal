@@ -1,17 +1,13 @@
-import React, { useEffect, useState ,useMemo} from 'react';
-
+import React, { useEffect, useState } from 'react';
 import { Label } from '../ui/label';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import apiClient from '@/utils/apiClient';
 import { toast } from 'sonner';
 import { useDispatch, useSelector } from 'react-redux';
 import { setLoading, setUser } from '@/redux/authSlice';
 import { Loader2 } from 'lucide-react';
-import { GoogleLogin } from '@react-oauth/google';
-
 
 const Signup = () => {
      
@@ -77,31 +73,6 @@ const Signup = () => {
         }
     };
 
-    const handleGoogleSignup = async (response) => {
-        try {
-          const { credential } = response;
-          if (!credential) return toast.error("Google login failed");
-    
-          // Send the Google token to your backend for verification and login
-          const res = await axios.post(
-            '/api/v1/user/google-login',
-            { token: credential }, // Send token and role
-            { withCredentials: true }
-          );
-    
-          if (res.data.success) {
-            localStorage.setItem("username", res.data.user.username);
-            dispatch(setUser(res.data.user));
-            navigate("/");
-            toast.success(res.data.message);
-          } else {
-            toast.error(res.data.message);
-          }
-        } catch (error) {
-          console.error("Google Login Error:", error);
-          toast.error("Google login failed. Try again later.");
-        }
-      };
     return (
         <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
             {/* Logo and Header */}
@@ -200,63 +171,41 @@ const Signup = () => {
                                     type="file" 
                                     accept="image/*" 
                                     onChange={changeFileHandler} 
-                                    className="hidden" 
+                                    className="hidden"
                                 />
                             </label>
                             {input.file && (
-                                <span className="ml-2 text-sm text-gray-600">{input.file.name}</span>
+                                <span className="ml-2 text-sm text-gray-500">
+                                    {input.file.name}
+                                </span>
                             )}
                         </div>
                     </div>
 
-                    <p className="text-xs text-gray-500">
-                        By clicking Agree & Join, you agree to the JobPortal <a href="#" className="text-blue-600 hover:underline">User Agreement</a>, 
-                        <a href="#" className="text-blue-600 hover:underline"> Privacy Policy</a>, and 
-                        <a href="#" className="text-blue-600 hover:underline"> Cookie Policy</a>.
-                    </p>
-
-                    <Button 
-                        type="submit" 
-                        disabled={loading}
-                        className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                    >
-                        {loading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Creating account...
-                            </>
-                        ) : 'Agree & Join'}
-                    </Button>
-
-                    <div className="relative my-6">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-gray-300"></div>
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="px-2 bg-white text-gray-500">or</span>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <GoogleLogin
-                            onSuccess={handleGoogleSignup}
-                            onError={() => toast.error("Google Signup Failed")}
-                            shape="rectangular"
-                            size="large"
-                            width="100%"
-                            text="signup_with"
-                            theme="outline"
-                            className="w-full"
-                        />
-                    </div>
-
-                    <div className="mt-6 text-center text-sm text-gray-600">
-                        Already on JobPortal?{' '}
-                        <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500 hover:underline">
-                            Sign in
-                        </Link>
+                    <div className="pt-2">
+                        <Button 
+                            type="submit" 
+                            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-md transition duration-150 ease-in-out"
+                            disabled={loading}
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Creating account...
+                                </>
+                            ) : 'Create account'}
+                        </Button>
                     </div>
                 </form>
+
+                <div className="mt-6 text-center text-sm">
+                    <p className="text-gray-600">
+                        Already have an account?{' '}
+                        <Link to="/login" className="text-blue-500 hover:text-blue-700 font-medium">
+                            Sign in
+                        </Link>
+                    </p>
+                </div>
             </div>
         </div>
     );

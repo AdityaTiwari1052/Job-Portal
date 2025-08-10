@@ -5,9 +5,14 @@ const userService = {
   updateProfile: async (profileData) => {
     try {
       console.log('Sending profile update to /user/profile/update', JSON.stringify(profileData, null, 2));
+      // Changed from put to post to match backend expectations
       const response = await apiClient.post('/user/profile/update', profileData);
+      
+      // Log the successful response
       console.log('Profile update successful:', response.data);
-      return response.data;
+      
+      // Return the response data for the component to use
+      return response.data || {}; // Always return an object, even if data is undefined
     } catch (error) {
       const errorDetails = {
         message: error.message,
@@ -21,8 +26,15 @@ const userService = {
         },
         stack: error.stack
       };
+      
       console.error('Error updating profile:', JSON.stringify(errorDetails, null, 2));
-      throw error;
+      
+      // Create a new error with the server's error message if available
+      const errorMessage = error.response?.data?.message || 'Failed to update profile';
+      const errorToThrow = new Error(errorMessage);
+      errorToThrow.response = error.response;
+      
+      throw errorToThrow;
     }
   },
 
@@ -78,7 +90,18 @@ const userService = {
       console.error('Error fetching profile:', JSON.stringify(errorDetails, null, 2));
       throw error;
     }
-  }
+  },
+
+  // Get authenticated user's profile
+  getMyProfile: async () => {
+    try {
+      const response = await apiClient.get('/user/me');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      throw error;
+    }
+  },
 };
 
 export default userService;

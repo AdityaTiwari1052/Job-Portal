@@ -12,55 +12,56 @@ const apiClient = axios.create({
   },
 });
 
-// Add request interceptor to log all outgoing requests
+// Add request interceptor to add auth token
 apiClient.interceptors.request.use(
   (config) => {
-    console.log('Request URL:', config.baseURL + config.url);
-    console.log('Request Headers:', config.headers);
+    const token = store.getState()?.auth?.token;
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    console.log('🚀 API Request:', config.method.toUpperCase(), config.url);
+    console.log('📦 Request Data:', config.data);
+    console.log('🔑 Auth Token:', token ? 'Present' : 'Missing');
+    
     return config;
   },
   (error) => {
-    console.error('Request Error:', error);
+    console.error('❌ Request Error:', error);
     return Promise.reject(error);
   }
 );
 
 // Response interceptor to handle common errors and authentication issues
 apiClient.interceptors.response.use(
-  (response) => response, // Simply return successful responses
-  async (error) => {
-    // Handle specific error statuses
+  (response) => {
+    console.log('✅ API Response:', response.config.method.toUpperCase(), response.config.url, response.status);
+    console.log('📦 Response Data:', response.data);
+    return response;
+  },
+  (error) => {
     if (error.response) {
-      const { status, data } = error.response;
-      switch (status) {
-        case 401: // Unauthorized
-          toast.error(data.message || 'You are not authenticated. Please log in.');
-          // Dispatch logout action to clear user state from Redux
-          store.dispatch(logout());
-          // Redirect to login page
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          }
-          break;
-        case 403: // Forbidden
-          toast.error(data.message || 'You are not authorized to perform this action.');
-          break;
-        case 404: // Not Found
-          toast.error(data.message || 'The requested resource was not found.');
-          break;
-        default:
-          // For other server-side errors, show the message from the backend if available
-          toast.error(data.message || 'An unexpected error occurred. Please try again.');
-          break;
+      // Handle 401 Unauthorized
+      if (error.response.status === 401) {
+        console.log('🛑 Authentication error, logging out...');
+        store.dispatch(logout());
       }
+      
+      console.error('❌ API Error Response:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        url: error.response.config.url,
+        method: error.response.config.method,
+        data: error.response.data,
+      });
     } else if (error.request) {
-      // The request was made but no response was received (e.g., network error)
-      toast.error('Network Error: Could not connect to the server. Please check your connection.');
+      console.error('❌ No response received:', error.request);
+      toast.error('No response from server. Please check your connection.');
     } else {
-      // Something happened in setting up the request that triggered an Error
-      toast.error(`An error occurred: ${error.message}`);
+      console.error('❌ Request setup error:', error.message);
+      toast.error('Error setting up request: ' + error.message);
     }
-
+    
     return Promise.reject(error);
   }
 );

@@ -190,16 +190,7 @@ const processLogin = async (req, res) => {
         console.log('\n=== LOGIN REQUEST ===');
         console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
         
-        // Log raw request details
-        console.log('\n=== RAW REQUEST ===');
-        console.log('Raw request body:', req.body);
-        console.log('Raw headers:', req.headers);
         
-        // Log parsed request details
-        console.log('\n=== PARSED REQUEST ===');
-        console.log('Parsed body type:', typeof req.body);
-        console.log('Parsed body keys:', Object.keys(req.body || {}));
-        console.log('Request content type:', req.get('Content-Type'));
         
         // Log raw body if available
         if (req.rawBody) {
@@ -215,12 +206,6 @@ const processLogin = async (req, res) => {
             });
         }
         
-        // Log all request properties
-        console.log('\n=== REQUEST PROPERTIES ===');
-        console.log('req.body exists:', !!req.body);
-        console.log('req.body content:', req.body);
-        console.log('req.rawBody exists:', !!req.rawBody);
-        console.log('req._readableState:', req._readableState);
         
         // Ensure body is properly parsed
         if (!req.body || typeof req.body !== 'object' || Object.keys(req.body).length === 0) {
@@ -241,10 +226,7 @@ const processLogin = async (req, res) => {
         // Destructure and validate required fields
         const { email, password } = req.body;
         
-        // Log parsed values (redacting password)
-        console.log('\n=== PARSED VALUES ===');
-        console.log('Email:', email || '[MISSING]');
-        console.log('Password:', password ? '[PROVIDED]' : '[MISSING]');
+       
         
         // Validate required fields
         const missingFields = [];
@@ -414,169 +396,136 @@ export const register = async (req, res) => {
 // Update Profile
 export const updateProfile = async (req, res) => {
     try {
-        console.log('📝 UPDATE PROFILE - Raw request body:', JSON.stringify(req.body, null, 2));
         
         const { 
             fullname, 
             email, 
             phoneNumber, 
-            bio, 
             skills,
             education,
             experience,
             certifications,
-            headline,
             location,
             about
         } = req.body;
         
-        console.log('📝 UPDATE PROFILE - Destructured data:', {
-            fullname,
-            email,
-            phoneNumber,
-            bio,
-            skills,
-            education: education ? `Array with ${education.length} items` : 'not provided',
-            experience: experience ? `Array with ${experience.length} items` : 'not provided',
-            certifications: certifications ? `Array with ${certifications.length} items` : 'not provided',
-            headline,
-            location,
-            about
-        });
-        
+        console.log("Education:", education);
+
         const file = req.file;
         let cloudResponse;
         if (file) {
-            const fileUri = getDataUri(file);
-            cloudResponse = await cloudinary.uploader.upload(fileUri.content);
-        }
-        
-        let skillsArray;
-        if (skills) {
-            // Handle skills as either array (new format) or comma-separated string (legacy format)
-            if (Array.isArray(skills)) {
-                console.log('📝 UPDATE PROFILE - Skills received as array:', skills);
-                skillsArray = skills;
-            } else if (typeof skills === 'string') {
-                console.log('📝 UPDATE PROFILE - Skills received as string, splitting:', skills);
-                skillsArray = skills.split(",");
+            console.log('\n📝 ======== FILE UPLOAD ========');
+            console.log('📝 Processing file upload:', file.originalname);
+            try {
+                const fileUri = getDataUri(file);
+                cloudResponse = await cloudinary.uploader.upload(fileUri.content);
+                console.log('📝 File uploaded to Cloudinary:', cloudResponse.secure_url);
+            } catch (fileError) {
+                console.error('❌ File upload error:', fileError);
+                return res.status(500).json({
+                    success: false,
+                    message: 'Error uploading file',
+                    error: fileError.message
+                });
             }
-            console.log('📝 UPDATE PROFILE - Final skills array:', skillsArray);
         }
-        
+
         const userId = req.user._id;
-        console.log('📝 UPDATE PROFILE - User ID:', userId);
+        console.log('\n📝 ======== USER UPDATE ========');
+        console.log('📝 Updating user ID:', userId);
         
         let user = await User.findById(userId);
-        
         if (!user) {
-            console.log('📝 UPDATE PROFILE - ERROR: User not found for ID:', userId);
-            return res.status(400).json({
-                message: "User not found.",
-                success: false
+            console.error('❌ User not found:', userId);
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
             });
         }
+
+        // Prepare update data with $set operator
+        const updateData = { $set: {} };
         
-        console.log('📝 UPDATE PROFILE - User found, current profile:', JSON.stringify(user.profile, null, 2));
+        // Update basic info if provided
+        if (fullname) updateData.$set.fullname = fullname;
+        if (email) updateData.$set.email = email;
+        if (phoneNumber) updateData.$set.phoneNumber = phoneNumber;
+        if (location) updateData.$set.location = location;
         
-        // Initialize profile if it doesn't exist
-        if (!user.profile) {
-            user.profile = {};
-            console.log('📝 UPDATE PROFILE - Initialized empty profile');
+        // Handle about section
+        if (about && typeof about === 'object') {
+            console.log('📝 Processing about section data:', JSON.stringify(about, null, 2));
+            // Save about data under profile.about to match the schema
+            updateData.$set['profile.about'] = {
+                ...(user.profile?.about || {}), // Preserve existing about data
+                ...about // Add/update with new about data
+            };
+            
+            // Also update individual fields at the root level for backward compatibility
+            if (about.bio) updateData.$set.about = about.bio;
+            if (about.headline) updateData.$set.headline = about.headline;
+            if (about.location) updateData.$set.location = about.location;
         }
-        
-        // Update basic fields
-        if (fullname) {
-            user.fullname = fullname;
-            console.log('📝 UPDATE PROFILE - Updated fullname:', fullname);
+
+        // Handle arrays - Update using $set with dot notation
+        if (skills) {
+            updateData.$set['profile.skills'] = Array.isArray(skills) ? skills : skills.split(',').map(s => s.trim());
         }
-        if (email) {
-            user.email = email;
-            console.log('📝 UPDATE PROFILE - Updated email:', email);
+        if (education) {
+            // Ensure we're not including any _id that could cause casting issues
+            const cleanEducation = education.map(edu => {
+                const { _id, ...eduWithoutId } = edu;
+                return eduWithoutId;
+            });
+            updateData.$set['profile.education'] = cleanEducation;
         }
-        if (phoneNumber) {
-            user.phoneNumber = phoneNumber;
-            console.log('📝 UPDATE PROFILE - Updated phoneNumber:', phoneNumber);
+        if (experience) updateData.$set['profile.experience'] = experience;
+        if (certifications) updateData.$set['profile.certifications'] = certifications;
+
+        // Handle profile photo if uploaded
+        if (cloudResponse?.secure_url) {
+            updateData.$set['profile.profilePhoto'] = cloudResponse.secure_url;
         }
-        if (bio) {
-            user.profile.bio = bio;
-            console.log('📝 UPDATE PROFILE - Updated bio:', bio);
-        }
-        if (about) {
-            user.profile.about = about;
-            console.log('📝 UPDATE PROFILE - Updated about:', about);
-        }
-        if (headline) {
-            user.profile.headline = headline;
-            console.log('📝 UPDATE PROFILE - Updated headline:', headline);
-        }
-        if (location) {
-            user.profile.location = location;
-            console.log('📝 UPDATE PROFILE - Updated location:', location);
-        }
-        if (skillsArray) {
-            user.profile.skills = skillsArray;
-            console.log('📝 UPDATE PROFILE - Updated skills:', skillsArray);
-        }
-        
-        // Update arrays - these are the critical missing pieces!
-        if (education !== undefined) {
-            console.log('📝 UPDATE PROFILE - Updating education from:', user.profile.education);
-            console.log('📝 UPDATE PROFILE - Updating education to:', education);
-            user.profile.education = education;
-            console.log('📝 UPDATE PROFILE - Education updated successfully');
-        }
-        if (experience !== undefined) {
-            console.log('📝 UPDATE PROFILE - Updating experience from:', user.profile.experience);
-            console.log('📝 UPDATE PROFILE - Updating experience to:', experience);
-            user.profile.experience = experience;
-            console.log('📝 UPDATE PROFILE - Experience updated successfully');
-        }
-        if (certifications !== undefined) {
-            console.log('📝 UPDATE PROFILE - Updating certifications from:', user.profile.certifications);
-            console.log('📝 UPDATE PROFILE - Updating certifications to:', certifications);
-            user.profile.certifications = certifications;
-            console.log('📝 UPDATE PROFILE - Certifications updated successfully');
-        }
-        
-        if (cloudResponse) {
-            user.profile.profilePhoto = cloudResponse.secure_url;
-            user.profile.profilePhotoOriginalName = file.originalname;
-            console.log('📝 UPDATE PROFILE - Updated profile photo');
-        }
-        
-        console.log('📝 UPDATE PROFILE - About to save user with profile:', JSON.stringify(user.profile, null, 2));
-        
-        await user.save();
-        console.log('📝 UPDATE PROFILE - User saved successfully to database');
-        
-        // Verify the save by fetching the user again
-        const savedUser = await User.findById(userId);
-        console.log('📝 UPDATE PROFILE - Verification: User profile after save:', JSON.stringify(savedUser.profile, null, 2));
-        
-        user = {
-            _id: user._id,
-            fullname: user.fullname,
-            email: user.email,
-            phoneNumber: user.phoneNumber,
-            // Role field removed
-            profile: user.profile
-        };
-        
-        console.log('📝 UPDATE PROFILE - Sending response with user:', JSON.stringify(user, null, 2));
-        
-        return res.status(200).json({
-            message: "Profile updated successfully.",
-            user,
-            success: true
+
+        console.log('\n📝 ======== FINAL UPDATE DATA ========');
+        console.log('📝 Update data to be saved:', JSON.stringify(updateData, null, 2));
+
+        // Update user
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            updateData,
+            { new: true, runValidators: true }
+        ).select('-password');
+
+      
+
+        res.status(200).json({
+            success: true,
+            message: 'Profile updated successfully',
+            user: updatedUser
         });
+
     } catch (error) {
-        console.log('❌ UPDATE PROFILE ERROR - Full error:', error);
-        console.log('❌ UPDATE PROFILE ERROR - Error message:', error.message);
-        console.log('❌ UPDATE PROFILE ERROR - Error stack:', error.stack);
-        return res.status(500).json({
-            message: "Internal server error",
-            success: false
+        console.error('\n❌ ======== UPDATE PROFILE ERROR ========');
+        console.error('❌ Error:', error);
+        console.error('❌ Error details:', {
+            name: error.name,
+            message: error.message,
+            stack: error.stack,
+            code: error.code,
+            keyPattern: error.keyPattern,
+            keyValue: error.keyValue
+        });
+        
+        res.status(500).json({
+            success: false,
+            message: 'Error updating profile',
+            error: error.message,
+            ...(process.env.NODE_ENV === 'development' && {
+                stack: error.stack,
+                name: error.name,
+                code: error.code
+            })
         });
     }
 };

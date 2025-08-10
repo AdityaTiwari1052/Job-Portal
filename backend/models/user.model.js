@@ -14,14 +14,15 @@ const userSchema = new mongoose.Schema(
 
     profile: {
       // Basic Info
-      bio: { type: String },
-      headline: { type: String },
-      location: { type: String },
-      pronouns: { type: String },
-      website: { type: String },
+      about: {
+        headline: { type: String, default: '' },
+        bio: { type: String, default: '' },
+        location: { type: String, default: '' },
+        website: { type: String, default: '' },
+        resumeUrl: { type: String, default: '' },
+        resumeName: { type: String, default: '' }
+      },
       
-      // Skills & Expertise
-      skills: [{ type: String }],
       projects: [{
         title: { type: String, required: true },
         url: { type: String },
@@ -30,6 +31,7 @@ const userSchema = new mongoose.Schema(
         description: { type: String },
         technologies: [{ type: String }]
       }],
+
       // Experience
       experience: [{
         title: { type: String, required: true },
@@ -53,7 +55,6 @@ const userSchema = new mongoose.Schema(
         degree: { type: String, required: true },
         field: { type: String, required: true },
         grade: { type: String },
-        activities: { type: String },
         startDate: { type: Date, required: true },
         endDate: { type: Date },
         current: { type: Boolean, default: false },
@@ -67,7 +68,8 @@ const userSchema = new mongoose.Schema(
         issueDate: { type: Date, required: true },
         expirationDate: { type: Date },
         credentialId: { type: String },
-        credentialUrl: { type: String }
+        credentialUrl: { type: String },
+        description: { type: String }
       }],
 
       // Languages
@@ -81,10 +83,8 @@ const userSchema = new mongoose.Schema(
       }],
 
       // Files
-      resume: { type: String },
-      resumeOriginalName: { type: String },
       profilePhoto: { type: String, default: "" },
-      coverPhoto: { type: String },
+      coverPhoto: { type: String }
     },
 
     resetPasswordToken: { type: String },
@@ -96,44 +96,108 @@ const userSchema = new mongoose.Schema(
 
     forgotPasswordOTP: { type: String, default: null },
     forgotPasswordExpires: { type: Date, default: Date.now },
+    isEmailVerified: { type: Boolean, default: false },
+    emailVerificationToken: { type: String },
+    emailVerificationExpire: { type: Date },
 
-    // ✅ Added for follow/unfollow
-    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    following: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-    notifications: [
-      {
-        from: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
-          required: true
-        },
-        message: {
-          type: String,
-          required: true
-        },
-        type: {
-          type: String,
-          enum: ['follow', 'like', 'comment', 'message', 'application', 'other'],
-          required: true
-        },
-        link: String,
-        date: {
-          type: Date,
-          default: Date.now,
-        },
-        read: {
-          type: Boolean,
-          default: false,
-        },
-        metadata: {
-          type: Map,
-          of: mongoose.Schema.Types.Mixed
-        }
-      }
-    ],
+    followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     
+    notifications: [{
+      type: { type: String, required: true },
+      from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      read: { type: Boolean, default: false },
+      createdAt: { type: Date, default: Date.now },
+      metadata: { type: mongoose.Schema.Types.Mixed }
+    }],
+
+    lastActive: { type: Date, default: Date.now },
+    isActive: { type: Boolean, default: true },
+    isProfileComplete: { type: Boolean, default: false },
+    
+    // Social Logins
+    githubId: { type: String },
+    linkedinId: { type: String },
+    
+    // Preferences
+    preferences: {
+      emailNotifications: { type: Boolean, default: true },
+      pushNotifications: { type: Boolean, default: true },
+      privacy: {
+        profileVisibility: { type: String, enum: ['public', 'connections', 'private'], default: 'public' },
+        emailVisibility: { type: Boolean, default: false },
+        phoneVisibility: { type: Boolean, default: false }
+      }
+    },
+    
+    // Account Status
+    status: {
+      isBanned: { type: Boolean, default: false },
+      banReason: { type: String },
+      banExpires: { type: Date }
+    },
+    
+    // Timestamps
+    lastLogin: { type: Date },
+    lastPasswordChange: { type: Date },
+    accountCreated: { type: Date, default: Date.now },
+    
+    // Additional Metadata
+    metadata: {
+      signupSource: { type: String },
+      ipAddress: { type: String },
+      userAgent: { type: String },
+      lastIpAddress: { type: String },
+      lastUserAgent: { type: String },
+      timezone: { type: String },
+      locale: { type: String },
+      deviceInfo: { type: mongoose.Schema.Types.Mixed }
+    }
   },
-  { timestamps: true }
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+  }
 );
 
-export const User = mongoose.model("User", userSchema);
+// Indexes for better query performance
+userSchema.index({ email: 1 });
+userSchema.index({ username: 1 });
+userSchema.index({ 'profile.location': 'text', fullname: 'text', 'profile.about.headline': 'text' });
+
+// Virtual for full name
+userSchema.virtual('fullName').get(function() {
+  return this.fullname || `${this.firstName || ''} ${this.lastName || ''}`.trim();
+});
+
+// Pre-save hook to ensure username is lowercase
+userSchema.pre('save', function(next) {
+  if (this.isModified('username') && this.username) {
+    this.username = this.username.toLowerCase();
+  }
+  next();
+});
+
+// Method to generate auth token
+userSchema.methods.generateAuthToken = function() {
+  const token = jwt.sign(
+    { _id: this._id, email: this.email },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.JWT_EXPIRE || '30d' }
+  );
+  return token;
+};
+
+// Method to generate password reset token
+userSchema.methods.getResetPasswordToken = function() {
+  const resetToken = crypto.randomBytes(20).toString('hex');
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+  this.resetPasswordExpire = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
+  return resetToken;
+};
+
+export const User = mongoose.model('User', userSchema);

@@ -80,6 +80,42 @@ const DialogDescription = React.forwardRef(({ className, ...props }, ref) => (
 ))
 DialogDescription.displayName = DialogPrimitive.Description.displayName
 
+const ProfileDialog = ({ 
+  open, 
+  onOpenChange, 
+  title, 
+  children, 
+  className,
+  ...props 
+}) => {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div 
+        className={cn(
+          "relative z-50 w-full max-w-md overflow-hidden rounded-lg bg-white p-6 shadow-xl",
+          className
+        )}
+        {...props}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">{title}</h2>
+          <button
+            onClick={() => onOpenChange?.(false)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="space-y-4">
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export {
   Dialog,
   DialogPortal,
@@ -91,4 +127,5 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
+  ProfileDialog,
 }

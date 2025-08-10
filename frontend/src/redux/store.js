@@ -3,7 +3,8 @@ import authSlice from "./authSlice";
 import jobSlice from "./jobSlice";
 import companySlice from "./companySlice";
 import applicationSlice from "./applicationSlice";
-import postSlice from "./postSlice"; // ✅ Add this line
+import postSlice from "./postSlice";
+import profileReducer from "./profileSlice"; 
 
 import {
   persistStore,
@@ -21,6 +22,7 @@ const persistConfig = {
   key: "root",
   version: 1,
   storage,
+  whitelist: ['auth'], 
 };
 
 const rootReducer = combineReducers({
@@ -28,7 +30,8 @@ const rootReducer = combineReducers({
   job: jobSlice,
   company: companySlice,
   application: applicationSlice,
-  post: postSlice, // ✅ Add this line
+  post: postSlice,
+  profile: profileReducer, 
 });
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

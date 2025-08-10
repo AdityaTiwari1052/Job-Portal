@@ -20,9 +20,38 @@ router.post("/forgotpassword-verification", verifyOtpforgotpassword);
 router.post(
   "/profile/update",
   isAuthenticated,
-  multiUpload, // This already includes the fields configuration
+  multiUpload, 
+  (req, res, next) => {
+    console.log('📝 PROFILE UPDATE - Request received:', {
+      method: req.method,
+      url: req.originalUrl,
+      body: req.body,
+      files: req.files,
+      file: req.file,
+      headers: req.headers
+    });
+    next();
+  },
   updateProfile
 );
+router.put(
+  "/profile/update",
+  isAuthenticated,
+  multiUpload, 
+  (req, res, next) => {
+    console.log('📝 PROFILE UPDATE (PUT) - Request received:', {
+      method: req.method,
+      url: req.originalUrl,
+      body: req.body,
+      files: req.files,
+      file: req.file,
+      headers: req.headers
+    });
+    next();
+  },
+  updateProfile
+);
+
 
 router.put("/change-password", isAuthenticated, changePassword);
 
@@ -51,4 +80,3 @@ router.get("/github/callback", handleGitHubCallback);
 
 
 export default router;
-
