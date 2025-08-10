@@ -5,6 +5,7 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { Camera, Edit, Calendar, MapPin, Mail, Phone, Globe, Plus, Briefcase, GraduationCap, Award, X, Pencil, Loader2 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import userService from "../services/userService";
 import { toast } from "sonner";
 import _ from 'lodash';
@@ -1344,6 +1345,63 @@ const EditProfile = ({ user, onUpdate }) => {
     );
   };
 
+  const renderProfileHeader = () => {
+    return (
+      <div className="relative">
+        {/* Cover Photo */}
+        <div className="h-48 bg-gradient-to-r from-blue-600 to-blue-800 rounded-t-lg">
+          <div className="absolute top-4 right-4">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              className="bg-white/90 hover:bg-white"
+              onClick={() => {}}
+            >
+              <Camera className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+        
+        {/* Profile Photo and Basic Info */}
+        <div className="px-6 pb-6 relative">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between -mt-16 mb-4">
+            <div className="flex items-end gap-4">
+              <div className="relative">
+                <Avatar className="h-32 w-32 border-4 border-white">
+                  <AvatarImage src={profile.profilePhoto} alt={profile.fullname} />
+                  <AvatarFallback className="text-3xl">
+                    {profile.fullname?.split(' ').map(n => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="absolute bottom-0 right-0 bg-white hover:bg-gray-100 h-10 w-10 rounded-full"
+                  onClick={() => {}}
+                >
+                  <Camera className="h-5 w-5" />
+                </Button>
+              </div>
+              
+              <div className="mb-2">
+                <h1 className="text-2xl font-bold">{profile.fullname || 'Your Name'}</h1>
+                <p className="text-gray-600">{profile.headline || 'Your professional headline'}</p>
+                <div className="flex items-center text-sm text-gray-500 mt-1">
+                  {profile.location && (
+                    <span className="flex items-center">
+                      <MapPin className="h-4 w-4 mr-1" />
+                      {profile.location}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -1410,94 +1468,243 @@ const EditProfile = ({ user, onUpdate }) => {
     );
   };
 
-  return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden max-w-4xl mx-auto">
-      {/* Header Section */}
-      <div className="relative">
-        {/* Cover Photo */}
-        <div className="h-48 bg-gradient-to-r from-blue-600 to-blue-800">
-          <div className="absolute top-4 right-4">
-            <Button variant="outline" size="icon" className="bg-white/90 hover:bg-white">
-              <Camera className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
+  const ProfileSidebar = ({ user }) => {
+    // State for recommended users with sample data
+    const [recommendedUsers, setRecommendedUsers] = useState([
+      {
+        _id: '1',
+        fullname: 'John Doe',
+        username: 'johndoe',
+        headline: 'Software Engineer at Tech Corp',
+        profile: {
+          profilePhoto: '/default-avatar.png'
+        },
+        connect: true
+      },
+      {
+        _id: '2',
+        fullname: 'Jane Smith',
+        username: 'janesmith',
+        headline: 'Product Designer at Design Co',
+        profile: {
+          profilePhoto: '/default-avatar.png'
+        },
+        connect: true
+      }
+    ]);
+    const [isLoading, setIsLoading] = useState(false);
+    
+    // Sample data
+    const profileLanguage = "English";
+    const profileUrl = `www.jobportal.com/in/${user?.username || 'user'}`;
+    
+    const viewersAlsoViewed = [
+      { title: "Student at ABES Engineering College", count: 3 },
+      { title: "Someone from Greater Delhi Area", count: 3 },
+      { title: "Someone at ABES Engineering College", count: 3 }
+    ];
+    
+    const pagesYouMayLike = [
+      {
+        name: "Google",
+        description: "Software Development",
+        followers: "38,335,948 followers",
+        connections: "11 connections follow this page"
+      },
+      {
+        name: "Accenture in India",
+        description: "IT Services and IT Consulting",
+        followers: "2,984,084 followers",
+        connections: "2 connections follow this page"
+      }
+    ];
+
+    // Handle connect button click
+    const handleConnect = async (userId) => {
+      try {
+        console.log('Connecting with user ID:', userId);
         
-        {/* Profile Info */}
-        <div className="px-6 pb-6 relative">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between -mt-16 mb-4">
-            <div className="flex items-end gap-4">
-              <div className="relative">
-                <Avatar className="h-32 w-32 border-4 border-white">
-                  <AvatarImage src={user?.profileImage} />
-                  <AvatarFallback className="text-3xl">
-                    {profile.fullname?.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <Button 
-                  variant="outline" 
-                  size="icon" 
-                  className="absolute bottom-0 right-0 bg-white hover:bg-gray-100 h-10 w-10 rounded-full"
-                >
-                  <Camera className="h-5 w-5" />
-                </Button>
+        // Update local state to show pending status
+        setRecommendedUsers(prev => 
+          prev.map(user => 
+            user._id === userId 
+              ? { ...user, connect: false, pending: true } 
+              : user
+          )
+        );
+        
+        toast.success('Connection request sent!');
+      } catch (error) {
+        console.error('Error sending connection request:', error);
+        toast.error('Failed to send connection request');
+      }
+    };
+
+    return (
+      <div className="space-y-6 w-full">
+        {/* Profile Language */}
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">Profile language</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <span>{profileLanguage}</span>
+              <Button variant="link" className="h-4 p-0 text-blue-600">Edit</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Public Profile & URL */}
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">Public profile & URL</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-blue-600">{profileUrl}</span>
+              <Button variant="link" className="h-4 p-0 text-blue-600">Edit</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Viewers Also Viewed */}
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">Who your viewers also viewed</CardTitle>
+            <span className="text-sm text-gray-500">Private to you</span>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {viewersAlsoViewed.map((item, index) => (
+              <div key={index} className="text-sm">
+                <p className="font-medium">{item.title}</p>
+                <p className="text-gray-500">{item.count} people</p>
+                <Button variant="outline" className="mt-2 w-full">View</Button>
               </div>
-              
-              <div className="mb-2">
-                <h1 className="text-2xl font-bold">{profile.fullname}</h1>
-                <p className="text-gray-600">{profile.headline}</p>
-                <div className="flex items-center text-sm text-gray-500 mt-1">
-                  <span>{profile.location}</span>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* People You May Know */}
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">People you may know</CardTitle>
+            <span className="text-sm text-gray-500">From your job title</span>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoading ? (
+              <div className="flex justify-center py-4">
+                <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+              </div>
+            ) : recommendedUsers.length > 0 ? (
+              <div className="space-y-4">
+                {recommendedUsers.map((person) => (
+                  person && person._id && (
+                    <div key={person._id} className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
+                      <div className="flex flex-col items-center">
+                        <img 
+                          src={person.profile?.profilePhoto || '/default-avatar.png'} 
+                          alt={person.fullname || 'User'}
+                          className="w-16 h-16 rounded-full object-cover mb-2"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = '/default-avatar.png';
+                          }}
+                        />
+                        <h3 className="font-medium text-center">
+                          {person.fullname || 'Unknown User'}
+                        </h3>
+                        <p className="text-gray-500 text-sm text-center">
+                          {person.headline || ''}
+                        </p>
+                        <p className="text-gray-400 text-xs text-center">
+                          {person.username ? `@${person.username}` : ''}
+                        </p>
+                      </div>
+                      <div className="mt-3">
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => handleConnect(person._id)}
+                          disabled={!person.connect}
+                        >
+                          {person.pending ? 'Pending' : 'Connect'}
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white dark:bg-gray-800 p-4 rounded">
+                <p className="text-gray-600 dark:text-gray-300 text-sm text-center">
+                  No recommendations available at this time.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Pages You May Like */}
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="text-lg font-medium">Pages you may like</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {pagesYouMayLike.map((page, index) => (
+              <div key={index} className="text-sm">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                    {page.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="font-medium">{page.name}</p>
+                    <p className="text-gray-500 text-xs">{page.followers}</p>
+                    <p className="text-gray-500 text-xs">{page.connections}</p>
+                  </div>
                 </div>
+                <Button variant="outline" className="mt-2 w-full">Follow</Button>
               </div>
-            </div>
-            
-            <div className="mt-4 md:mt-0 flex gap-2">
-              <Button 
-                variant="outline" 
-                className="text-blue-600 border-blue-600 hover:bg-blue-50"
-                onClick={() => openEditDialog('profile')}
-              >
-                <Pencil className="h-4 w-4 mr-1" /> Edit Profile
-              </Button>
-            </div>
-          </div>
-          
-          {/* About Section */}
-          <div className="mt-6">
-            <div className="flex justify-between items-center mb-2">
-              <h2 className="text-xl font-semibold">About</h2>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8"
-                onClick={() => openEditDialog('about')}
-              >
-                <Pencil className="h-4 w-4" />
-              </Button>
-            </div>
-            <p className="text-gray-700 whitespace-pre-line">
-              {profile.about || "No about information provided."}
-            </p>
-          </div>
+            ))}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  return (
+    <div className="w-full max-w-full overflow-x-hidden">
+      <div className="flex flex-col lg:flex-row w-full px-0 mx-0">
+        {/* Main Content - Full width */}
+        <div className="w-full">
+          <Card className="mb-6 w-full rounded-none border-x-0 border-t-0 shadow-none">
+            <CardContent className="p-0">
+              <div className="p-6 w-full">
+                {renderProfileHeader()}
+              </div>
+              <div className="px-6 pb-6 w-full">
+                {renderAboutSection()}
+                {renderExperienceSection()}
+                {renderEducationSection()}
+                {renderSkillsSection()}
+                {renderCertificationsSection()}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Sidebar */}
+        <div className="w-full lg:w-80 flex-shrink-0 px-0 lg:pl-4">
+          <ProfileSidebar user={user} />
         </div>
       </div>
-      
-      {/* Profile Sections */}
-      <div className="border-t border-gray-200">
-        {renderExperienceSection()}
-        {renderEducationSection()}
-        {renderSkillsSection()}
-        {renderCertificationsSection()}
-      </div>
-      
-      {/* Edit Dialog */}
+
+      {/* Existing Edit Dialog */}
       <EditDialog
         isOpen={editDialog.isOpen}
+        title={`${editDialog.isNew ? 'Add' : 'Edit'} ${editDialog.type}`}
         onClose={() => setEditDialog(prev => ({ ...prev, isOpen: false }))}
-        title={`${editDialog.isNew ? 'Add' : 'Edit'} ${
-          editDialog.type ? editDialog.type.charAt(0).toUpperCase() + editDialog.type.slice(1) : ''
-        }`}
+        className={`max-w-2xl ${editDialog.type === 'about' ? 'max-w-3xl' : ''}`}
         onSave={handleSave}
         onDelete={() => {
           const handleDelete = async () => {

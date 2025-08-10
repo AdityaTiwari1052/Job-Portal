@@ -581,21 +581,8 @@ const JobsPage = () => {
                                 {activeTab === 'all' && (
                                     <div className="space-y-4">
                                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                            <h1 className="text-2xl font-bold hidden sm:block">All Jobs</h1>
+                                            <h1 className="text-2xl font-bold">All Jobs</h1>
                                             <div className="w-full sm:w-64">
-                                                <Input 
-                                                    placeholder="Search jobs..."
-                                                    value={searchQuery}
-                                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                                    className="w-full"
-                                                />
-                                            </div>
-                                        </div>
-                                        
-                                        {/* Mobile Search - Only show on mobile */}
-                                        <div className="sm:hidden mb-6">
-                                            <h1 className="text-2xl font-bold mb-4">All Jobs</h1>
-                                            <div className="w-full mb-4">
                                                 <Input 
                                                     placeholder="Search jobs..."
                                                     value={searchQuery}
@@ -732,7 +719,7 @@ const JobsPage = () => {
                                         <div className="text-center">
                                             <Building2 className="mx-auto h-12 w-12 text-gray-400" />
                                             <h3 className="mt-2 text-lg font-medium text-gray-900">No company registered</h3>
-                                            <p className="mt-1 text-sm text-gray-500">You need to register a company before posting a job.</p>
+                                            <p className="text-sm text-gray-500">You need to register a company before posting a job.</p>
                                             <div className="mt-6">
                                                 <Button 
                                                     onClick={() => window.location.href = '/admin/companies/create'}
@@ -756,51 +743,82 @@ const JobsPage = () => {
                             </div>
                         )}
 
-                        {/* Show Applicants List when showApplicants is true */}
-                        {showApplicants && selectedJobData && (
-                            <div className="sticky top-6">
-                                <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                                    <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white">
-                                        <div className="flex items-center">
-                                            <Button 
-                                                variant="ghost" 
-                                                size="icon" 
-                                                className="mr-4 text-white hover:bg-white/20"
-                                                onClick={() => setShowApplicants(false)}
-                                            >
-                                                <ArrowLeft className="h-5 w-5" />
-                                            </Button>
-                                            <div>
-                                                <h2 className="text-xl font-bold">Applicants for {selectedJobData.title}</h2>
-                                                <p className="text-blue-100 text-sm mt-1">
-                                                    {currentApplicants.length} {currentApplicants.length === 1 ? 'applicant' : 'applicants'} found
-                                                </p>
-                                            </div>
-                                        </div>
+                        {/* Show Job Details when a job is selected and not showing applicants */}
+                        {selectedJobId && selectedJobData && !showApplicants && activeTab !== 'post' && (
+                            <div className={`fixed inset-0 z-50 bg-white overflow-y-auto lg:static lg:block ${window.innerWidth < 1024 ? 'block' : 'hidden'}`}>
+                                <div className="p-4 lg:p-0">
+                                    <div className="flex items-center justify-between mb-4 lg:hidden">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon"
+                                            onClick={() => {
+                                                setSelectedJobId(null);
+                                                setSelectedJobData(null);
+                                            }}
+                                        >
+                                            <ArrowLeft className="h-5 w-5" />
+                                        </Button>
+                                        <h2 className="text-lg font-semibold">Job Details</h2>
+                                        <div className="w-10"></div> {/* Spacer for flex alignment */}
                                     </div>
-                                    <div className="p-6">
-                                        <ApplicantsList 
-                                            applicants={currentApplicants}
-                                            onBack={() => setShowApplicants(false)}
-                                            onUpdateStatus={updateApplicationStatus}
-                                        />
-                                    </div>
+                                    <JobDescription 
+                                        jobId={selectedJobId}
+                                        jobData={selectedJobData}
+                                        onBack={() => {
+                                            setSelectedJobId(null);
+                                            setSelectedJobData(null);
+                                        }}
+                                        isMobile={window.innerWidth < 1024}
+                                        hideApplyButton={shouldHideApplyButton}
+                                    />
                                 </div>
                             </div>
                         )}
 
-                        {/* Show Job Details when a job is selected and not showing applicants */}
-                        {selectedJobId && selectedJobData && !showApplicants && activeTab !== 'post' && (
-                            <div className="sticky top-6">
-                                <JobDescription 
-                                    jobId={selectedJobId}
-                                    jobData={selectedJobData}
-                                    onBack={() => {
-                                        setSelectedJobId(null);
-                                        setSelectedJobData(null);
-                                    }}
-                                    hideApplyButton={shouldHideApplyButton}
-                                />
+                        {/* Show Applicants List when showApplicants is true */}
+                        {showApplicants && selectedJobData && (
+                            <div className={`fixed inset-0 z-50 bg-white overflow-y-auto lg:static lg:block ${window.innerWidth < 1024 ? 'block' : 'hidden'}`}>
+                                <div className="p-4 lg:p-0">
+                                    <div className="flex items-center justify-between mb-4 lg:hidden">
+                                        <Button 
+                                            variant="ghost" 
+                                            size="icon"
+                                            onClick={() => setShowApplicants(false)}
+                                        >
+                                            <ArrowLeft className="h-5 w-5" />
+                                        </Button>
+                                        <h2 className="text-lg font-semibold">Applicants</h2>
+                                        <div className="w-10"></div> {/* Spacer for flex alignment */}
+                                    </div>
+                                    <div className="lg:bg-white lg:rounded-lg lg:shadow-sm lg:border lg:border-gray-200 lg:overflow-hidden">
+                                        <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white lg:rounded-t-lg">
+                                            <div className="flex items-center">
+                                                <Button 
+                                                    variant="ghost" 
+                                                    size="icon" 
+                                                    className="mr-4 text-white hover:bg-white/20 lg:hidden"
+                                                    onClick={() => setShowApplicants(false)}
+                                                >
+                                                    <ArrowLeft className="h-5 w-5" />
+                                                </Button>
+                                                <div>
+                                                    <h2 className="text-xl font-bold">Applicants for {selectedJobData.title}</h2>
+                                                    <p className="text-blue-100 text-sm mt-1">
+                                                        {currentApplicants.length} {currentApplicants.length === 1 ? 'applicant' : 'applicants'} found
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="p-6">
+                                            <ApplicantsList 
+                                                applicants={currentApplicants}
+                                                onBack={() => setShowApplicants(false)}
+                                                onUpdateStatus={updateApplicationStatus}
+                                                isMobile={window.innerWidth < 1024}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>

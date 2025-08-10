@@ -69,6 +69,143 @@ const ProfileView = ({ user, isOwnProfile, handleEditClick }) => (
   </>
 );
 
+// LinkedIn-style Sidebar Component
+const ProfileSidebar = ({ user }) => {
+  // Sample data - replace with actual data from props or API
+  const profileLanguage = "English";
+  const profileUrl = `www.jobportal.com/in/${user?.username || 'user'}`;
+  
+  const viewersAlsoViewed = [
+    { title: "Student at ABES Engineering College", count: 3 },
+    { title: "Someone from Greater Delhi Area", count: 3 },
+    { title: "Someone at ABES Engineering College", count: 3 }
+  ];
+  
+  const peopleYouMayKnow = [
+    {
+      name: "Mrinal Sahai",
+      title: "SWE Trainee @SalesCode.ai | B.Tech. CSE '26 | ABES Engineering College",
+      connect: true
+    },
+    {
+      name: "Alexia Anthony",
+      title: "Student at Xavier University of Louisiana",
+      connect: true
+    },
+    {
+      name: "Ashish Kanan",
+      title: "Intern @ProdigyInfotech | Full Stack Developer | Copywriter",
+      connect: true
+    }
+  ];
+  
+  const pagesYouMayLike = [
+    {
+      name: "Google",
+      description: "Software Development",
+      followers: "38,335,948 followers",
+      connections: "11 connections follow this page"
+    },
+    {
+      name: "Accenture in India",
+      description: "IT Services and IT Consulting",
+      followers: "2,984,084 followers",
+      connections: "2 connections follow this page"
+    }
+  ];
+
+  return (
+    <div className="space-y-6 w-80 flex-shrink-0 hidden lg:block">
+      {/* Profile Language */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-medium">Profile language</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <span>{profileLanguage}</span>
+            <Button variant="link" className="h-4 p-0 text-blue-600">Edit</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Public Profile & URL */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-medium">Public profile & URL</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-blue-600">{profileUrl}</span>
+            <Button variant="link" className="h-4 p-0 text-blue-600">Edit</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Viewers Also Viewed */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-medium">Who your viewers also viewed</CardTitle>
+          <span className="text-sm text-gray-500">Private to you</span>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {viewersAlsoViewed.map((item, index) => (
+            <div key={index} className="text-sm">
+              <p className="font-medium">{item.title}</p>
+              <p className="text-gray-500">{item.count} people</p>
+              <Button variant="outline" className="mt-2 w-full">View</Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* People You May Know */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-medium">People you may know</CardTitle>
+          <span className="text-sm text-gray-500">From your job title</span>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {peopleYouMayKnow.map((person, index) => (
+            <div key={index} className="text-sm">
+              <p className="font-medium">{person.name}</p>
+              <p className="text-gray-500 line-clamp-2">{person.title}</p>
+              <Button variant="outline" className="mt-2 w-full">
+                {person.connect ? 'Connect' : 'Follow'}
+              </Button>
+            </div>
+          ))}
+          <Button variant="ghost" className="w-full text-blue-600">Show all</Button>
+        </CardContent>
+      </Card>
+
+      {/* Pages You May Like */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-medium">Pages you may like</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {pagesYouMayLike.map((page, index) => (
+            <div key={index} className="text-sm">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                  {page.name.charAt(0)}
+                </div>
+                <div>
+                  <p className="font-medium">{page.name}</p>
+                  <p className="text-gray-500 text-xs">{page.followers}</p>
+                  <p className="text-gray-500 text-xs">{page.connections}</p>
+                </div>
+              </div>
+              <Button variant="outline" className="mt-2 w-full">Follow</Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
+
 // 🧠 Main Component
 const Profile = ({ refreshPosts }) => {
   const { username: urlUsername } = useParams();
@@ -254,72 +391,112 @@ const Profile = ({ refreshPosts }) => {
   const isOwnProfile = reduxUser?._id === profileUser?._id;
 
   return (
-    <div className={`${!isOwnProfile ? 'w-full' : 'max-w-3xl mx-auto mt-10 p-6'}`}>
-      <Card className={!isOwnProfile ? 'min-h-screen rounded-none border-x-0' : ''}>
-        <CardHeader className="flex flex-row items-center justify-between gap-4 bg-gray-100 p-4 rounded-t-lg">
-          <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20">
-              <AvatarImage src={profileUser.profile?.profilePhoto} alt="Profile" />
-              <AvatarFallback>{profileUser.fullname?.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <CardTitle className="text-xl font-bold text-blue-600">{profileUser.fullname}</CardTitle>
-              <p className="text-gray-600">@{profileUser.username}</p>
-            </div>
-          </div>
-          {!isOwnProfile && (
-            <Button 
-              onClick={handleFollowToggle} 
-              size="sm"
-              variant={isFollowing ? 'outline' : 'default'}
-              className={isFollowing ? 'text-gray-600' : ''}
-            >
-              {isFollowing ? 'Following' : 'Follow'}
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="p-6">
-          {isEditRoute ? (
-            <Outlet context={{ user: profileUser, isOwnProfile, handleEditClick }} />
-          ) : (
-            <ProfileView user={profileUser} isOwnProfile={isOwnProfile} handleEditClick={handleEditClick} />
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Photo Gallery */}
-      {!isEditRoute && userPosts.length > 0 && (
-        <Card className="mt-6">
-          <CardHeader className="bg-gray-50 p-4">
-            <div className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5 text-blue-600" />
-              <h2 className="text-lg font-semibold">Photos</h2>
-            </div>
-          </CardHeader>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-3 gap-2">
-              {userPosts
-                .filter(post => post.imageUrl)
-                .map((post, index) => (
-                  <div key={post._id || index} className="aspect-square overflow-hidden rounded-md">
-                    <img
-                      src={post.imageUrl}
-                      alt={`Post ${index + 1}`}
-                      className="h-full w-full object-cover hover:opacity-90 transition-opacity cursor-pointer"
-                      onClick={() => {
-                        // You can implement a lightbox or modal here
-                        window.open(post.imageUrl, '_blank');
-                      }}
-                    />
+    <div className="container mx-auto px-4 py-8">
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Main Content */}
+        <div className="flex-1">
+          {/* Existing profile content */}
+          <Card className="mb-6">
+            <CardContent className="pt-6">
+              {loading ? (
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : profileUser ? (
+                <div className="space-y-6">
+                  {/* Existing profile header */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
+                    <div className="relative">
+                      <Avatar className="w-24 h-24 sm:w-32 sm:h-32">
+                        <AvatarImage src={profileUser.profile?.avatar} alt={profileUser.fullname} />
+                        <AvatarFallback>
+                          {profileUser.fullname?.charAt(0) || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isOwnProfile && (
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="absolute -bottom-2 -right-2 rounded-full w-8 h-8"
+                          onClick={() => document.getElementById('avatar-upload')?.click()}
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                          <input
+                            id="avatar-upload"
+                            type="file"
+                            className="hidden"
+                            accept="image/*"
+                            onChange={handleAvatarUpload}
+                          />
+                        </Button>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <h1 className="text-2xl font-bold">{profileUser.fullname}</h1>
+                      <p className="text-gray-600">{profileUser.profile?.headline}</p>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {profileUser.profile?.location && (
+                          <span className="flex items-center text-sm text-gray-500">
+                            <MapPin className="h-4 w-4 mr-1" />
+                            {profileUser.profile.location}
+                          </span>
+                        )}
+                        {profileUser.email && (
+                          <span className="flex items-center text-sm text-gray-500">
+                            <Mail className="h-4 w-4 mr-1" />
+                            {profileUser.email}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {isOwnProfile && (
+                      <Button
+                        onClick={handleEditClick}
+                        variant="outline"
+                        className="mt-4 sm:mt-0"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Profile
+                      </Button>
+                    )}
                   </div>
-                ))}
+
+                  {/* Profile View or Edit Form */}
+                  {isEditRoute ? (
+                    <Outlet context={{ user: profileUser, isOwnProfile, handleEditClick }} />
+                  ) : (
+                    <ProfileView 
+                      user={profileUser} 
+                      isOwnProfile={isOwnProfile} 
+                      handleEditClick={handleEditClick} 
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">User not found</p>
+                  <Button onClick={() => navigate('/')} className="mt-4">
+                    Back to Home
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* User Posts */}
+          {userPosts.length > 0 && (
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">Posts</h2>
+              {userPosts.map((post) => (
+                <PostCard key={post._id} post={post} />
+              ))}
             </div>
-            {userPosts.filter(post => post.imageUrl).length === 0 && (
-              <p className="text-center text-gray-500 py-4">No photos to display</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </div>
+
+        {/* Right Sidebar */}
+        <ProfileSidebar user={profileUser || {}} />
+      </div>
     </div>
   );
 };
