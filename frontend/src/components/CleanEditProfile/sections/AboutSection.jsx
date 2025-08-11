@@ -14,68 +14,86 @@ const selectProfile = (state) => state.profile.profile || {};
 const selectProfileLoading = (state) => state.profile.loading;
 const selectProfileError = (state) => state.profile.error;
 
-const AboutSection = React.memo(({ user, onSave, isCurrentUser = true }) => {
+const AboutSection = React.memo(({ user, onSave, isCurrentUser = true, isReadOnly = false }) => {
   const dispatch = useDispatch();
   const { toast } = useToast();
   
+  console.log('\n=== ABOUT SECTION DEBUG ===');
+  console.log('User prop:', JSON.stringify({
+    hasUser: !!user,
+    userId: user?._id,
+    hasProfile: !!user?.profile,
+    profileKeys: user?.profile ? Object.keys(user.profile) : 'No profile',
+    hasAbout: !!user?.profile?.about,
+    aboutType: typeof user?.profile?.about,
+    aboutData: user?.profile?.about || 'No about data',
+    legacyAbout: user?.about ? 'Present' : 'Not present',
+    legacyHeadline: user?.headline ? 'Present' : 'Not present',
+    legacyLocation: user?.location ? 'Present' : 'Not present',
+    legacyWebsite: user?.website ? 'Present' : 'Not present'
+  }, null, 2));
+
   // Get profile from Redux or use the user prop
   const profileFromRedux = useSelector(selectProfile, shallowEqual);
   const loading = useSelector(selectProfileLoading);
   const error = useSelector(selectProfileError);
   
+  useEffect(() => {
+    console.log('Redux profile data:', JSON.stringify({
+      hasProfile: !!profileFromRedux,
+      profileKeys: profileFromRedux ? Object.keys(profileFromRedux) : 'No profile',
+      hasAbout: !!profileFromRedux?.about,
+      aboutData: profileFromRedux?.about || 'No about data in Redux',
+      loading,
+      error
+    }, null, 2));
+  }, [profileFromRedux, loading, error]);
+
   // Use the user prop if available, otherwise use the Redux state
   const profile = user?.profile || profileFromRedux || user || {};
-  
-  console.log('=== ABOUT SECTION RENDER ===');
-  console.log('1. User prop:', user);
-  console.log('2. Profile from Redux:', profileFromRedux);
-  console.log('3. Using profile:', profile);
-  
+
+  console.log('Profile data in AboutSection:', {
+    hasProfile: !!user?.profile,
+    aboutType: typeof user?.about,
+    profileAboutType: typeof profile?.about,
+    fullProfile: profile
+  });
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  
-  // Get about data from profile or use empty object
-  const about = useMemo(() => {
-    console.log('4. Processing profile data for about section:', profile);
+
+  // Normalize the about data
+  const aboutData = useMemo(() => {
+    console.log('Normalizing about data...');
     
-    if (!profile) {
-      console.log('4a. No profile data available');
-      return {};
-    }
-    
-    // If about is a string at root level (legacy format)
-    if (typeof profile.about === 'string') {
-      console.log('4b. About is a string at root level, using as bio');
-      return {
-        bio: profile.about || '',
-        headline: profile.headline || '',
-        location: profile.location || '',
-        website: profile.website || ''
-      };
-    }
-    
-    // If about is an object at root level (current format)
-    if (profile.about && typeof profile.about === 'object') {
-      console.log('4c. Using about object from profile');
-      return {
-        bio: profile.about.bio || '',
-        headline: profile.about.headline || '',
-        location: profile.about.location || '',
-        website: profile.about.website || ''
-      };
-    }
-    
-    // Fallback to root level properties
-    console.log('4d. Using root level properties for about section');
-    return {
-      bio: '',
-      headline: profile.headline || '',
-      location: profile.location || '',
-      website: profile.website || ''
+    // Try to get about data from different possible locations
+    const aboutFromProfile = user?.profile?.about;
+    const aboutFromRoot = {
+      bio: user?.about,
+      headline: user?.headline,
+      location: user?.location,
+      website: user?.website
     };
-  }, [profile]);
-  
-  console.log('5. Processed about data:', about);
-  
+    
+    // Log the sources
+    console.log('About from profile.about:', aboutFromProfile);
+    console.log('About from root level:', aboutFromRoot);
+    
+    // Merge the data with profile.about taking precedence
+    const normalizedAbout = {
+      bio: '',
+      headline: '',
+      location: '',
+      website: '',
+      ...(aboutFromRoot || {}),
+      ...(aboutFromProfile || {})
+    };
+    
+    console.log('Normalized about data:', normalizedAbout);
+    return normalizedAbout;
+  }, [user]);
+
+  console.log('Processed about data:', aboutData);
+
   const [formData, setFormData] = useState({
     bio: '',
     headline: '',
@@ -85,19 +103,19 @@ const AboutSection = React.memo(({ user, onSave, isCurrentUser = true }) => {
 
   // Initialize form data when about data changes
   useEffect(() => {
-    console.log('6. Initializing form data with about:', about);
+    console.log('Initializing form data with about:', aboutData);
     setFormData({
-      bio: about.bio || '',
-      headline: about.headline || '',
-      location: about.location || '',
-      website: about.website || ''
+      bio: aboutData.bio || '',
+      headline: aboutData.headline || '',
+      location: aboutData.location || '',
+      website: aboutData.website || ''
     });
-  }, [about]);
-  
+  }, [aboutData]);
+
   // Check if there's any content to display
   const hasContent = useMemo(() => 
-    about?.bio || about?.headline || about?.location || about?.website,
-  [about]);
+    aboutData?.bio || aboutData?.headline || aboutData?.location || aboutData?.website,
+  [aboutData]);
 
   // Handle form input changes
   const handleChange = useCallback((e) => {
@@ -157,30 +175,30 @@ const AboutSection = React.memo(({ user, onSave, isCurrentUser = true }) => {
 
     return (
       <div className="space-y-4">
-        {about.headline && (
-          <p className="text-lg font-medium">{about.headline}</p>
+        {aboutData.headline && (
+          <p className="text-lg font-medium">{aboutData.headline}</p>
         )}
-        {about.bio && (
-          <p className="text-gray-600 whitespace-pre-line">{about.bio}</p>
+        {aboutData.bio && (
+          <p className="text-gray-600 whitespace-pre-line">{aboutData.bio}</p>
         )}
-        {(about.location || about.website) && (
+        {(aboutData.location || aboutData.website) && (
           <div className="flex flex-wrap gap-4 mt-4 text-sm text-gray-600">
-            {about.location && (
+            {aboutData.location && (
               <div className="flex items-center">
                 <MapPin className="h-4 w-4 mr-1" />
-                <span>{about.location}</span>
+                <span>{aboutData.location}</span>
               </div>
             )}
-            {about.website && (
+            {aboutData.website && (
               <div className="flex items-center">
                 <Globe className="h-4 w-4 mr-1" />
                 <a 
-                  href={about.website.startsWith('http') ? about.website : `https://${about.website}`}
+                  href={aboutData.website.startsWith('http') ? aboutData.website : `https://${aboutData.website}`}
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline"
                 >
-                  {about.website.replace(/^https?:\/\//, '')}
+                  {aboutData.website.replace(/^https?:\/\//, '')}
                 </a>
               </div>
             )}
@@ -188,7 +206,7 @@ const AboutSection = React.memo(({ user, onSave, isCurrentUser = true }) => {
         )}
       </div>
     );
-  }, [about, hasContent]);
+  }, [aboutData, hasContent]);
 
   return (
     <Card className="mb-6">

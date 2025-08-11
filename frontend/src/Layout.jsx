@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Outlet, useLocation, Link } from "react-router-dom";
+import { Outlet, useLocation, Link, useNavigate } from "react-router-dom";
 import Navbar from "./components/shared/Navbar";
 import Sidebar from "./components/Sidebar";
 import EditProfile from "./components/EditProfile";
@@ -9,68 +9,73 @@ import { Button } from "./components/ui/button";
 import { X, Globe, User, Users, BookOpen } from "lucide-react";
 import { Avatar, AvatarImage } from "./components/ui/avatar";
 import MobileBottomNav from "./components/MobileBottomNav";
+import { useMediaQuery } from "./hooks/use-media-query";
 
 const Layout = () => {
   const { user } = useSelector((store) => store.auth);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showProfileSidebar, setShowProfileSidebar] = useState(false);
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const location = useLocation();
+  const navigate = useNavigate();
   
   // State to store the latest profile data
-  const [profileData, setProfileData] = useState(() => {
-    const initialData = {
-      ...(user?.profile || {}),
-      fullname: user?.fullname,
-      // Ensure we have all required fields with defaults
-      headline: user?.profile?.headline || user?.headline || '',
-      about: user?.profile?.about || '',
-      location: user?.profile?.location || '',
-      profilePhoto: user?.profile?.profilePhoto || ''
-    };
-    console.log('Initial profile data in Layout:', initialData);
-    return initialData;
-  });
+  const [profileData, setProfileData] = useState(() => ({
+    ...(user?.profile || {}),
+    fullname: user?.fullname || '',
+    headline: user?.profile?.headline || user?.headline || '',
+    about: user?.profile?.about || '',
+    location: user?.profile?.location || '',
+    profilePhoto: user?.profile?.profilePhoto || ''
+  }));
 
   // Update profile data when user data changes
   useEffect(() => {
-    console.log('User data changed in Layout:', user);
     if (user) {
-      const newProfileData = {
-        ...profileData, // Keep existing data
+      setProfileData(prev => ({
+        ...prev,
         ...user.profile,
-        fullname: user.fullname || profileData.fullname,
-        headline: user.profile?.headline || user.headline || profileData.headline,
-        about: user.profile?.about || profileData.about,
-        location: user.profile?.location || profileData.location,
-        profilePhoto: user.profile?.profilePhoto || profileData.profilePhoto
-      };
-      console.log('Updating profile data in Layout:', newProfileData);
-      setProfileData(newProfileData);
+        fullname: user.fullname || prev.fullname,
+        headline: user.profile?.headline || user.headline || prev.headline,
+        about: user.profile?.about || prev.about,
+        location: user.profile?.location || prev.location,
+        profilePhoto: user.profile?.profilePhoto || prev.profilePhoto
+      }));
     }
   }, [user]);
-  const location = useLocation();
+
+  // Route helpers
   const isProfilePage = location.pathname.startsWith("/profile/");
+  const isEditProfilePage = location.pathname === "/edit-profile";
   const isOwnProfile = location.pathname === "/profile/me" || 
                      (user && location.pathname === `/profile/${user.username}`);
   
-  // Define routes where both sidebars should be hidden
-  const hideSidebarRoutes = [
-    '/jobs',
-    '/network',
-    '/messaging',
-    '/notifications'
-  ];
-  
+  // Define routes where sidebars should be hidden
+  const hideSidebarRoutes = ['/jobs', '/network', '/messaging', '/notifications'];
   const shouldHideSidebars = hideSidebarRoutes.some(route => 
     location.pathname.startsWith(route)
   );
   
+  // Determine what to show
   const showSidebar = user && (!isProfilePage || isOwnProfile) && 
-                    !showEditProfile && !showProfileSidebar && !shouldHideSidebars;
-  const showNews = !showEditProfile && !showProfileSidebar && !shouldHideSidebars;
+                    !showEditProfile && !showProfileSidebar && 
+                    !shouldHideSidebars && !isEditProfilePage;
+  
+  const showNews = !showEditProfile && !showProfileSidebar && 
+                 !shouldHideSidebars && !isEditProfilePage;
+
+  // Close all sidebars and modals
+  const closeAll = () => {
+    setShowEditProfile(false);
+    setShowProfileSidebar(false);
+  };
 
   // Handle profile click from Navbar
   const handleProfileClick = () => {
-    if (showProfileSidebar) {
+    if (isMobile) {
+      // On mobile, navigate to the profile page
+      navigate('/profile/me');
+    } else if (showProfileSidebar) {
       // If sidebar is already showing, show edit profile
       setShowEditProfile(true);
       setShowProfileSidebar(false);
@@ -82,39 +87,47 @@ const Layout = () => {
 
   // Close edit profile
   const closeEditProfile = () => {
-    setShowEditProfile(false);
-    setShowProfileSidebar(false);
+    if (isMobile && isEditProfilePage) {
+      // On mobile, navigate back
+      window.history.back();
+    } else {
+      // On desktop, just close the modal
+      closeAll();
+    }
   };
 
-  // Toggle edit profile
-  const toggleEditProfile = () => {
-    setShowEditProfile(!showEditProfile);
+  // Handle profile updates
+  const handleProfileUpdate = (updatedProfile) => {
+    setProfileData(prev => ({
+      ...prev,
+      ...updatedProfile,
+      fullname: updatedProfile.fullname || prev.fullname,
+      headline: updatedProfile.headline || prev.headline,
+      about: updatedProfile.about || prev.about,
+      location: updatedProfile.location || prev.location,
+      profilePhoto: updatedProfile.profilePhoto || prev.profilePhoto
+    }));
   };
 
-  // Mock data for suggestions
-  const suggestions = [
-    { id: 1, name: "John Doe", title: "Software Engineer at Tech Corp", mutual: 3 },
-    { id: 2, name: "Jane Smith", title: "Product Manager at Design Co", mutual: 5 },
-    { id: 3, name: "Alex Johnson", title: "UX Designer at Creative Inc", mutual: 2 },
-  ];
-
-  const profileSettings = [
-    { icon: <User className="h-4 w-4" />, label: "Profile language", value: "English" },
-    { 
-      icon: <Globe className="h-4 w-4" />, 
-      label: "Public profile & URL", 
-      value: (
-        <a 
-          href={`https://www.linkedin.com/in/${user?.username || 'user'}`} 
-          target="_blank" 
-          rel="noopener noreferrer"
-          className="text-blue-600 hover:underline"
-        >
-          www.linkedin.com/in/{user?.username || 'user'}
-        </a>
-      ) 
-    },
-  ];
+  // Render the edit profile content
+  const renderEditProfile = () => {
+    if (isMobile && isEditProfilePage) {
+      return <EditProfile onClose={closeEditProfile} isMobile={isMobile} />;
+    } else if (showEditProfile && !isMobile) {
+      return (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <EditProfile 
+              onClose={closeEditProfile} 
+              isMobile={isMobile}
+              onProfileUpdate={handleProfileUpdate}
+            />
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f4f2ee] pb-16 md:pb-0">
@@ -124,95 +137,35 @@ const Layout = () => {
 
       <div className="flex-1 flex pt-16">
         {/* Regular Sidebar */}
-        <div className={`${showSidebar ? 'w-72' : 'w-0'} transition-all duration-300 hidden md:block md:ml-4`}>
+        <div className={`${showSidebar ? 'w-72' : 'w-0'} transition-all duration-300 hidden md:block`}>
           {showSidebar && (
             <Sidebar 
               onEditClick={() => setShowEditProfile(true)}
               profile={profileData}
+              isMobileMenuOpen={showProfileSidebar}
+              onMobileMenuClose={closeAll}
             />
           )}
         </div>
 
-        {/* Profile Sidebar (visible on mobile and desktop) */}
-        {showProfileSidebar && (
-          <div 
-            className="fixed inset-0 z-50 bg-black bg-opacity-50"
-            onClick={() => setShowProfileSidebar(false)}
-          >
-            <div 
-              className="fixed left-0 top-0 bottom-0 w-72 bg-white dark:bg-gray-800 shadow-lg transform translate-x-0 transition-transform duration-300"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-end p-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 md:hidden"
-                  onClick={() => setShowProfileSidebar(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="h-[calc(100%-2rem)]">
-                <Sidebar 
-                  onEditClick={() => {
-                    setShowEditProfile(true);
-                    setShowProfileSidebar(false);
-                  }}
-                  profile={profileData}
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Main Content */}
-        <div className="flex-1 w-full">
-          <div className="h-full flex flex-col">
-            <div className={`${showEditProfile ? 'bg-white dark:bg-gray-800' : ''} flex-1`}>
-              {showEditProfile ? (
-                <EditProfile 
-                  onClose={closeEditProfile} 
-                  user={user} 
-                  onProfileUpdate={(updatedProfile) => {
-                    console.log('=== PROFILE UPDATE RECEIVED IN LAYOUT ===');
-                    console.log('Updated profile data from EditProfile:', updatedProfile);
-                    console.log('Current profile data in Layout:', profileData);
-                    
-                    // Update the local profile data when EditProfile updates it
-                    const newProfileData = {
-                      ...profileData, // Keep existing data
-                      ...updatedProfile,
-                      // Only update if the value is defined
-                      fullname: updatedProfile.fullname !== undefined ? updatedProfile.fullname : profileData.fullname,
-                      headline: updatedProfile.headline !== undefined ? updatedProfile.headline : profileData.headline,
-                      location: updatedProfile.location !== undefined ? updatedProfile.location : profileData.location,
-                      about: updatedProfile.about !== undefined ? updatedProfile.about : profileData.about,
-                      pronouns: updatedProfile.pronouns !== undefined ? updatedProfile.pronouns : profileData.pronouns,
-                      profilePhoto: updatedProfile.profilePhoto !== undefined ? updatedProfile.profilePhoto : profileData.profilePhoto
-                    };
-                    
-                    console.log('New profile data after update:', newProfileData);
-                    setProfileData(newProfileData);
-                  }} 
-                />
-              ) : (
-                <Outlet />
-              )}
-            </div>
-          </div>
-        </div>
+        <main className={`flex-1 overflow-y-auto p-4 ${isEditProfilePage ? 'md:px-8' : ''}`}>
+          <Outlet context={{ profile: profileData, onProfileUpdate: handleProfileUpdate }} />
+        </main>
 
-        {/* News Section - Hidden when editing profile or showing profile sidebar */}
-        {showNews && !isProfilePage && (
-          <aside className="w-80 shrink-0 hidden lg:block">
+        {/* News Sidebar */}
+        {showNews && (
+          <div className="hidden lg:block w-80 p-4">
             <News />
-          </aside>
+          </div>
         )}
+
+        {/* Edit Profile Modal */}
+        {renderEditProfile()}
       </div>
-      
+
       {/* Mobile Bottom Navigation */}
-      <MobileBottomNav />
+      {isMobile && <MobileBottomNav onProfileClick={handleProfileClick} />}
     </div>
   );
 };

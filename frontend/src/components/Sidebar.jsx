@@ -1,22 +1,58 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Pencil, Briefcase, Bookmark, Star, MapPin } from "lucide-react";
+import { Pencil, Briefcase, Bookmark, Star, MapPin, LogOut } from "lucide-react";
+import { useMediaQuery } from '@/hooks/use-media-query';
+import { useAuth } from '@/contexts/AuthContext';
 
-const Sidebar = ({ onEditClick, profile }) => {
+const Sidebar = ({ onEditClick, profile, isMobileMenuOpen, onMobileMenuClose }) => {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+  const isMobile = useMediaQuery('(max-width: 768px)');
   const loggedInUser = useSelector((state) => state.auth.user);
-  
-  // Debug: Log the received props
-  useEffect(() => {
-    console.log('=== SIDEBAR RENDERED ===');
-    console.log('Profile prop:', profile);
-    console.log('Logged in user:', loggedInUser);
-  }, [profile, loggedInUser]);
   
   // Use profile from props if available, otherwise use loggedInUser.profile
   const displayProfile = profile || loggedInUser?.profile || {};
+
+  // Handle edit profile click
+  const handleEditProfile = (e) => {
+    if (e) e.stopPropagation();
+    
+    if (isMobile) {
+      // Get the username from the logged-in user
+      const username = loggedInUser?.username || 'me';
+      
+      // Navigate directly to the edit profile page with the correct path
+      // Using absolute path to avoid any relative path issues
+      navigate(`/profile/${username}/edit`, { 
+        state: { 
+          from: 'sidebar',
+          // Include the user data we already have to prevent extra API calls
+          userData: loggedInUser 
+        } 
+      });
+      
+      // Close mobile menu if it's open
+      if (onMobileMenuClose) onMobileMenuClose();
+    } else if (onEditClick) {
+      // On desktop, use the provided click handler if available
+      onEditClick(e);
+    }
+  };
+
+  // Handle sign out
+  const handleSignOut = async (e) => {
+    e.stopPropagation();
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
 
   if (!loggedInUser) return null;
 
@@ -28,58 +64,32 @@ const Sidebar = ({ onEditClick, profile }) => {
 
   // Get the display headline with fallbacks
   const getDisplayHeadline = () => {
-    // Debug log
-    console.log('=== GETTING HEADLINE ===');
-    console.log('Profile:', profile);
-    console.log('User profile:', loggedInUser?.profile);
-    
-    // First priority: Direct profile prop
-    if (profile?.headline) {
-      console.log('Using profile headline:', profile.headline);
-      return profile.headline;
+    if (displayProfile.headline) return displayProfile.headline;
+    if (loggedInUser?.profile?.headline) return loggedInUser.profile.headline;
+    if (loggedInUser?.headline) return loggedInUser.headline;
+    if (displayProfile.about) {
+      return displayProfile.about.length > 100 
+        ? displayProfile.about.substring(0, 100) + '...' 
+        : displayProfile.about;
     }
-    
-    // Second priority: User's profile data
-    if (loggedInUser?.profile?.headline) {
-      console.log('Using user profile headline:', loggedInUser.profile.headline);
-      return loggedInUser.profile.headline;
-    }
-    
-    // Third priority: Direct user headline
-    if (loggedInUser?.headline) {
-      console.log('Using user headline:', loggedInUser.headline);
-      return loggedInUser.headline;
-    }
-    
-    // Fourth priority: About section as fallback
-    if (profile?.about) {
-      const aboutSnippet = profile.about.length > 100 
-        ? profile.about.substring(0, 100) + '...' 
-        : profile.about;
-      console.log('Using about section as headline:', aboutSnippet);
-      return aboutSnippet;
-    }
-    
-    // Final fallback
-    console.log('No headline found, using default');
     return 'Update your profile to add a headline';
   };
 
   return (
-    <div className="w-full sticky top-4">
-      <Card className="overflow-visible border border-gray-200 shadow-sm hover:shadow-md transition-shadow duration-200">
+    <div className="h-full flex flex-col">
+      <Card className="flex-1 flex flex-col overflow-hidden">
         {/* Cover Photo */}
         <div className="h-24 bg-gradient-to-r from-blue-500 to-blue-600 relative">
           <div className="absolute inset-0 bg-black/10 hover:bg-black/20 transition-colors duration-200" />
         </div>
         
         {/* Profile Section */}
-        <div className="px-6 pb-4 -mt-12 relative">
+        <div className="px-6 pb-4 -mt-12 relative flex-1 flex flex-col">
           <div className="flex justify-center">
             <div className="relative group">
               <Avatar 
                 className="h-24 w-24 border-4 border-white shadow-lg cursor-pointer hover:shadow-xl transition-all duration-200"
-                onClick={onEditClick}
+                onClick={handleEditProfile}
               >
                 <AvatarImage 
                   src={displayProfile.profilePhoto || loggedInUser?.profile?.profilePhoto} 
@@ -113,10 +123,10 @@ const Sidebar = ({ onEditClick, profile }) => {
               variant="outline" 
               size="sm"
               className="mt-4 w-full border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 flex items-center justify-center gap-2 transition-colors duration-200"
-              onClick={onEditClick}
+              onClick={handleEditProfile}
             >
               <Pencil className="h-3.5 w-3.5" />
-              Edit Profile
+              {isMobile ? 'Edit Profile' : 'Edit Profile'}
             </Button>
           </div>
         </div>
@@ -149,6 +159,18 @@ const Sidebar = ({ onEditClick, profile }) => {
           <span>My Jobs</span>
         </div>
       </Card>
+
+      {/* Sign Out Button - Only show on mobile */}
+      {isMobile && (
+        <Button 
+          variant="ghost" 
+          className="mt-4 w-full flex items-center justify-center gap-2 text-red-600 hover:bg-red-50 hover:text-red-700"
+          onClick={handleSignOut}
+        >
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </Button>
+      )}
     </div>
   );
 };

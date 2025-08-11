@@ -907,19 +907,24 @@ export const searchUsers = async (req, res) => {
     try {
         const { username } = req.params;
         
+        console.log('🔍 Searching for users with query:', username);
+        
         const users = await User.find({
             $or: [
+                { username: { $regex: username, $options: 'i' } },
                 { fullname: { $regex: username, $options: 'i' } },
                 { email: { $regex: username, $options: 'i' } }
             ]
         }).select('-password');
+        
+        console.log('🔍 Found users:', users);
         
         return res.status(200).json({
             users,
             success: true
         });
     } catch (error) {
-        console.log(error);
+        console.error('🔴 Search error:', error);
         return res.status(500).json({
             message: "Internal server error",
             success: false
@@ -982,25 +987,60 @@ export const getAllUsers = async (req, res) => {
 // Get My Profile
 export const getMyProfile = async (req, res) => {
     try {
-        const userId = req.user._id; // Corrected: use req.user._id
+        const userId = req.user._id;
+        console.log('\n=== GET MY PROFILE DEBUG ===');
+        console.log('Fetching profile for user ID:', userId);
+        
         const user = await User.findById(userId)
             .select('-password')
-            .populate('following', 'profile.fullname username profile.profilePhoto') // Populate following details
-            .populate('followers', 'profile.fullname username profile.profilePhoto'); // Populate followers details
+            .populate('following', 'profile.fullname username profile.profilePhoto')
+            .populate('followers', 'profile.fullname username profile.profilePhoto')
+            .lean();
 
         if (!user) {
+            console.log('User not found');
             return res.status(404).json({
                 message: "User not found",
                 success: false
             });
         }
+
+        // Log the user data before any modifications
+        console.log('\n=== USER DATA BEFORE NORMALIZATION ===');
+        console.log('Has profile:', !!user.profile);
+        console.log('Profile keys:', user.profile ? Object.keys(user.profile) : 'No profile');
+        console.log('Has about:', user.profile?.about ? 'Yes' : 'No');
+        console.log('About data:', user.profile?.about || 'No about data');
+        console.log('Legacy about field:', user.about || 'Not present');
+        console.log('Legacy headline:', user.headline || 'Not present');
+        console.log('Legacy location:', user.location || 'Not present');
+        console.log('Legacy website:', user.website || 'Not present');
+
+        // Ensure profile.about exists
+        if (!user.profile) {
+            user.profile = {};
+        }
+        if (!user.profile.about) {
+            user.profile.about = {
+                bio: user.about || '',
+                headline: user.headline || '',
+                location: user.location || '',
+                website: user.website || ''
+            };
+            console.log('\nCreated profile.about from legacy fields');
+        }
+
+        // Log the final user data that will be sent
+        console.log('\n=== FINAL USER DATA BEING SENT ===');
+        console.log('profile.about:', JSON.stringify(user.profile.about, null, 2));
+        console.log('===================================\n');
         
         return res.status(200).json({
             user,
             success: true
         });
     } catch (error) {
-        console.log(error);
+        console.error('Error in getMyProfile:', error);
         return res.status(500).json({
             message: "Internal server error",
             success: false

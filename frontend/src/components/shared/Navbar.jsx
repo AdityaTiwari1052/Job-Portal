@@ -246,62 +246,141 @@ const Navbar = ({ onProfileClick }) => {
 const SearchDialog = ({ onClose }) => {
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleSearch = async (e) => {
-    if (e.key === 'Enter' && query.trim()) {
+    // Only search if query has at least 2 characters
+    if ((e.key === 'Enter' || e.type === 'click') && query.trim().length >= 2) {
+      setIsLoading(true);
       setUsers([]);
       try {
-        const response = await apiClient.get(`/user/search/${query}`, {
+        console.log('🔍 Searching for:', query.trim());
+        const response = await apiClient.get(`/user/search/${encodeURIComponent(query.trim())}`, {
           withCredentials: true
         });
-        if (response.data.users.length === 0) {
-          toast.error('No users found');
+        
+        console.log('🔍 Search response:', response.data);
+        
+        if (!response.data.users || response.data.users.length === 0) {
+          console.log('No users found');
+          toast.info('No users found matching your search');
+          setUsers([]);
         } else {
+          console.log('Users found:', response.data.users);
           setUsers(response.data.users);
         }
       } catch (error) {
-        console.error('Search error:', error);
-        if (error.response?.status === 401) {
-          toast.error('Please log in to search');
+        console.error('🔴 Search error:', error);
+        if (error.response) {
+          console.error('Error response data:', error.response.data);
+          console.error('Error status:', error.response.status);
+          console.error('Error headers:', error.response.headers);
+          
+          if (error.response.status === 401) {
+            toast.error('Please log in to search');
+          } else if (error.response.data && error.response.data.message) {
+            toast.error(error.response.data.message);
+          } else {
+            toast.error('Error searching for users');
+          }
+        } else if (error.request) {
+          console.error('No response received:', error.request);
+          toast.error('No response from server. Please try again.');
         } else {
-          toast.error('Error searching');
+          console.error('Error message:', error.message);
+          toast.error('Error: ' + error.message);
         }
+        setUsers([]);
+      } finally {
+        setIsLoading(false);
       }
+    } else if (query.trim().length > 0 && query.trim().length < 2) {
+      toast.info('Please enter at least 2 characters');
     }
   };
 
-  const handleProfileClick = (username) => {
-    navigate(`/profile/${username}`);
-    onClose();
+  const handleProfileClick = (user) => {
+    // Navigate to the user's profile using their username
+    if (user?.username) {
+      navigate(`/user/${user.username}`);
+      onClose();
+    } else {
+      toast.error('Cannot navigate to profile: Username not available');
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-start pt-20 z-40" onClick={onClose}>
-      <div className="bg-white dark:bg-gray-900 text-black dark:text-white shadow-lg rounded-lg p-4 w-96 relative" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center gap-2 border-b pb-2 mb-2">
+    <div className="fixed inset-0 bg-black/50 flex justify-center items-start pt-20 z-50" onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 text-black dark:text-white shadow-xl rounded-lg p-4 w-full max-w-md mx-4 relative" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2 border-b pb-3 mb-3">
           <Search className="w-5 h-5 text-gray-500" />
-          <Input
-            type="text"
-            className="w-full"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleSearch}
-            placeholder="Search for people..."
-            autoFocus
-          />
+          <div className="relative flex-1">
+            <Input
+              type="text"
+              className="w-full pr-10"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleSearch}
+              placeholder="Search for people by username or name..."
+              autoFocus
+            />
+            {query && (
+              <button 
+                onClick={() => setQuery('')} 
+                className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+          <Button 
+            onClick={handleSearch}
+            disabled={!query.trim() || isLoading}
+            className="ml-2"
+          >
+            {isLoading ? 'Searching...' : 'Search'}
+          </Button>
         </div>
-        {users.length > 0 && (
-          <div className="max-h-60 overflow-y-auto">
+        
+        {isLoading ? (
+          <div className="flex justify-center p-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+          </div>
+        ) : users.length > 0 ? (
+          <div className="max-h-96 overflow-y-auto">
             {users.map((user) => (
-              <div key={user.username} className="flex items-center gap-3 p-2 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer" onClick={() => handleProfileClick(user.username)}>
-                <img src={user.profile.profilePhoto} alt="User" className="w-10 h-10 rounded-full" />
-                <div>
-                  <p className="font-semibold">{user.fullname}</p>
-                  <p className="text-sm text-gray-500">@{user.username}</p>
+              <div 
+                key={user._id} 
+                className="flex items-center gap-3 p-3 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md cursor-pointer transition-colors"
+                onClick={() => handleProfileClick(user)}
+              >
+                <div className="flex-shrink-0">
+                  <img 
+                    src={user.profile?.profilePhoto || '/default-avatar.png'} 
+                    alt={user.fullname} 
+                    className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-gray-600"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold truncate">{user.fullname}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {user.profile?.headline || 'No headline'}
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    @{user.username}
+                  </p>
                 </div>
               </div>
             ))}
+          </div>
+        ) : query ? (
+          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+            <p>No results found for "{query}"</p>
+          </div>
+        ) : (
+          <div className="text-center py-4 text-gray-500 dark:text-gray-400">
+            <p>Search for users by name or username</p>
           </div>
         )}
       </div>

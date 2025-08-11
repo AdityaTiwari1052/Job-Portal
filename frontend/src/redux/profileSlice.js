@@ -103,6 +103,21 @@ export const updateAbout = createAsyncThunk(
   }
 );
 
+export const updateUserProfile = createAsyncThunk(
+  'profile/updateUserProfile',
+  async (userData, { rejectWithValue }) => {
+    try {
+      debugLog('Updating user profile data...', userData);
+      const response = await userService.updateProfile(userData);
+      debugLog('User profile updated:', response.data);
+      return response.data;
+    } catch (error) {
+      debugLog('Error updating user profile:', error.response?.data || error.message);
+      return rejectWithValue(error.response?.data?.message || 'Failed to update profile');
+    }
+  }
+);
+
 const initialState = {
   profile: null,
   loading: false,
@@ -235,6 +250,23 @@ const profileSlice = createSlice({
     });
     builder.addCase(updateAbout.rejected, (state, action) => {
       debugLog('Update about - failed', action.payload || action.error);
+      state.loading = false;
+      state.error = action.payload;
+    });
+
+    // Update User Profile
+    builder.addCase(updateUserProfile.pending, (state) => {
+      debugLog('Updating user profile - pending');
+      state.loading = true;
+      state.error = null;
+    });
+    builder.addCase(updateUserProfile.fulfilled, (state, action) => {
+      debugLog('Update user profile - succeeded', action.payload);
+      state.loading = false;
+      state.profile = action.payload;
+    });
+    builder.addCase(updateUserProfile.rejected, (state, action) => {
+      debugLog('Update user profile - failed', action.payload || action.error);
       state.loading = false;
       state.error = action.payload;
     });

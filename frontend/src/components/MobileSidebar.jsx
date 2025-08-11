@@ -102,18 +102,20 @@ const MobileSidebar = ({ onClose, onEditClick, onLogout, profile }) => {
                   <span>{displayProfile.location || loggedInUser?.profile?.location || 'Add location'}</span>
                 </div>
 
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="mt-2 w-full text-xs h-8 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-900/20 flex items-center justify-center gap-1 transition-colors duration-200"
-                  onClick={() => {
-                    onEditClick();
-                    onClose();
-                  }}
+                <Link 
+                  to={`/profile/id/${loggedInUser?._id}/edit`}
+                  className="mt-2 w-full"
+                  onClick={onClose}
                 >
-                  <Pencil className="h-3 w-3" />
-                  <span>Edit Profile</span>
-                </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="w-full text-xs h-8 border-blue-500 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-900/20 flex items-center justify-center gap-1 transition-colors duration-200"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    <span>Edit Profile</span>
+                  </Button>
+                </Link>
               </div>
             </div>
 

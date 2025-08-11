@@ -21,12 +21,13 @@ import CompanySetup from "./components/admin/CompanySetup";
 import ProtectedRoute from "./components/admin/ProtectedRoute";
 import VerifyforgotPassword from "./components/auth/Verifyforgotpassword";
 import ForgotPassword from "./components/auth/ForgotPassword";
-import Profile from "./components/Profile";
+
 import AccountSettings from "./components/AccountSettings";
 import EditProfile from "./components/EditProfile";
 import Network from "./components/Network";
 import Applicants from "./components/admin/Applicants";
 import DebugInfo from "./components/DebugInfo";
+import UserProfile from "./components/UserProfile";  
 
 // Create router configuration
 const router = createBrowserRouter([
@@ -58,32 +59,12 @@ const router = createBrowserRouter([
       },
       { path: "account-settings", element: <AccountSettings /> },
       {
-        path: "profile/:username",
-        element: <Profile />,
-        children: [
-          { 
-            path: "edit", 
-            element: (
-              <ProtectedRoute>
-                <EditProfile />
-              </ProtectedRoute>
-            ) 
-          }
-        ],
-      },
-      {
-        path: "profile/id/:id",
-        element: <Profile />,
-        children: [
-          { 
-            path: "edit", 
-            element: (
-              <ProtectedRoute>
-                <EditProfile />
-              </ProtectedRoute>
-            ) 
-          }
-        ],
+        path: "profile/id/:id/edit",
+        element: (
+          <ProtectedRoute>
+            <EditProfile />
+          </ProtectedRoute>
+        )
       },
       {
         path: "admin/companies",
@@ -112,6 +93,7 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      
       {
         path: "network",
         element: (
@@ -125,7 +107,8 @@ const router = createBrowserRouter([
   { path: "/login", element: <Login /> },
   { path: "/signup", element: <Signup /> },
   { path: "/forgot-password", element: <ForgotPassword /> },
-  { path: "/verifyforgot-password", element: <VerifyforgotPassword /> },
+  { path: "/verify-forgot-password", element: <VerifyforgotPassword /> },
+  { path: "/user/:username", element: <UserProfile /> },
 ]);
 
 // Main App component wrapped with AuthProvider

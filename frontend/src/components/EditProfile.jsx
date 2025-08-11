@@ -1,147 +1,110 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
-import { toast } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { Button } from './ui/button';
+import { X } from 'lucide-react';
 import CleanEditProfile from './CleanEditProfile';
-import { fetchProfile } from '@/redux/profileSlice';
+import { useMediaQuery } from '../hooks/use-media-query';
 
-// Debug logging helper
-const debugLog = (message, data = '') => {
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[EditProfile] ${message}`, data);
-  }
-};
-
-const EditProfile = () => {
+const EditProfile = ({ onClose, isMobile }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { username } = useParams();
   const dispatch = useDispatch();
-  const [isSaving, setIsSaving] = useState(false);
-  const initialFetchDone = useRef(false);
+  const { user: reduxUser } = useSelector((store) => store.auth);
+  const [userData, setUserData] = useState(null);
   
-  // Get auth and profile state from Redux
-  const { user: authUser, isAuthenticated, loading: authLoading } = useSelector(state => state.auth);
-  const { profile, loading: profileLoading, error: profileError } = useSelector(state => state.profile);
-  
-  // Use profile data if available, otherwise fall back to auth user
-  const user = profile || authUser;
-  
-  // Only show loading if we don't have any user data yet and we're still loading
-  const isLoading = (authLoading || profileLoading) && !user && !initialFetchDone.current;
-  
-  // Fetch profile data
-  const fetchUserProfile = useCallback(async () => {
-    if (isAuthenticated && !profile && !profileLoading) {
-      try {
-        debugLog('Fetching profile data...');
-        await dispatch(fetchProfile()).unwrap();
-        initialFetchDone.current = true;
-        debugLog('Profile fetch completed successfully');
-      } catch (error) {
-        debugLog('Error fetching profile:', error);
-        toast.error(error || 'Failed to load profile data');
-      }
-    }
-  }, [dispatch, isAuthenticated, profile, profileLoading]);
-
-  // Handle authentication and data fetching
+  // Get user data from location state if available
   useEffect(() => {
-    debugLog('Auth effect running', { isAuthenticated, authLoading });
+    console.log('Location state:', location.state);
+    console.log('Redux user:', reduxUser);
     
-    if (!isAuthenticated && !authLoading) {
-      debugLog('User not authenticated, redirecting to login');
-      toast.error('Please log in to edit your profile');
-      navigate('/login', { state: { from: location.pathname } });
-      return;
+    if (location.state?.userData) {
+      console.log('Using user data from location state');
+      setUserData(location.state.userData);
+    } else if (reduxUser) {
+      console.log('Using user data from Redux');
+      setUserData(reduxUser);
+    } else {
+      console.error('No user data available in location state or Redux');
     }
-    
-    // Only fetch if we're authenticated and haven't fetched yet
-    if (isAuthenticated && !initialFetchDone.current) {
-      fetchUserProfile();
-    }
-  }, [isAuthenticated, authLoading, navigate, location.pathname, fetchUserProfile]);
+  }, [location.state, reduxUser]);
 
-  // Handle profile update
-  const handleSave = useCallback(async (updatedData) => {
-    if (!user) {
-      debugLog('Cannot save: No user data available');
-      return;
+  // Log when userData changes
+  useEffect(() => {
+    console.log('userData updated:', userData);
+    if (userData) {
+      console.log('Profile data structure:', {
+        hasProfile: !!userData.profile,
+        aboutType: typeof userData.about,
+        profileAboutType: userData.profile ? typeof userData.profile.about : 'no profile',
+        fullData: userData
+      });
     }
-    
-    try {
-      setIsSaving(true);
-      debugLog('Saving profile data:', updatedData);
-      
-      // Here you would typically call an API to save the data
-      // For now, we'll just show a success message
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      
-      // Refresh the profile data after successful update
-      await dispatch(fetchProfile()).unwrap();
-      
-      toast.success('Profile updated successfully');
-    } catch (error) {
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to update profile';
-      debugLog('Error updating profile:', { error, errorMessage });
-      toast.error(errorMessage);
-      throw error;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [dispatch, user]);
+  }, [userData]);
 
-  // Show loading state only if we don't have any user data
-  if (isLoading) {
+  const handleClose = () => {
+    if (isMobile) {
+      // On mobile, navigate back to the profile page
+      navigate(`/profile/${username || reduxUser?.username || 'me'}`);
+    } else if (onClose) {
+      // On desktop, use the provided onClose handler
+      onClose();
+    } else {
+      // Fallback: go back in history
+      navigate(-1);
+    }
+  };
+
+  // Show loading state if we don't have user data yet
+  if (!userData) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
-        <p className="mt-4 text-gray-600">Loading your profile...</p>
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
-  // Show error state if there was an error loading the profile
-  if (profileError) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen p-4">
-        <div className="bg-red-50 text-red-700 p-4 rounded-lg max-w-md w-full text-center">
-          <h2 className="text-lg font-semibold mb-2">Error Loading Profile</h2>
-          <p className="mb-4">{profileError}</p>
-          <button
-            onClick={fetchUserProfile}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-            disabled={profileLoading}
-          >
-            {profileLoading ? 'Retrying...' : 'Retry'}
-          </button>
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-white dark:bg-gray-900">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleClose}
+                className="mr-2"
+              >
+                <X className="h-5 w-5" />
+              </Button>
+              <h2 className="text-xl font-semibold">Edit Profile</h2>
+            </div>
+          </div>
         </div>
       </div>
-    );
-  }
 
-  // Show the profile editor if we have user data
-  if (user) {
-    debugLog('Rendering CleanEditProfile with user:', user);
-    return (
-      <div className="w-full">
-        {isLoading ? (
-          <div className="flex items-center justify-center min-h-[60vh]">
-            <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
-          </div>
-        ) : (
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg">
           <CleanEditProfile 
-            user={user} 
-            onSave={handleSave}
-            isSaving={isSaving}
+            user={userData} 
+            loading={!userData}
+            onCancel={handleClose}
+            isReadOnly={false}
+            isEditing={true}
+            onSave={(updatedData) => {
+              console.log('Profile updated:', updatedData);
+              // Handle successful save if needed
+              handleClose();
+            }}
           />
-        )}
+        </div>
       </div>
-    );
-  }
-
-  // Fallback in case no conditions above are met
-  return null;
+    </div>
+  );
 };
 
-export default React.memo(EditProfile);
+export default EditProfile;
