@@ -1,12 +1,12 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
-import { Briefcase, FileText as FileTextIcon, Plus, LogOut, User, ChevronDown, Users } from 'lucide-react';
+import { Briefcase, FileText as FileTextIcon, Plus, LogOut, User, ChevronDown, Users, Loader2 } from 'lucide-react';
 import PostJob from './admin/PostJob';
 import ManageJob from './ManageJob';
 import ApplicantsTable from './admin/ApplicantsTable';
 import { toast } from 'sonner';
-
+import api from '../utils/api';
 import RecruiterAuthModal from './auth/RecruiterAuthModal';
 
 // Custom hook to check recruiter auth
@@ -16,55 +16,64 @@ const useRecruiterAuth = () => {
   const [recruiter, setRecruiter] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const checkAuth = useCallback(async () => {
+    setIsLoading(true);
+    const token = localStorage.getItem('recruiterToken');
+    const savedRecruiter = localStorage.getItem('recruiterData');
+    
+    if (!token || !savedRecruiter) {
+      console.log('No auth data found in localStorage');
+      setIsAuthenticated(false);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // Make request to the recruiter/me endpoint with proper headers
+      const response = await api.get('/recruiter/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        withCredentials: true
+      });
+      
+      console.log('Auth response:', response.data); // Debug log
+      
+      if (response.data?.status === 'success' && response.data.data) {
+        const recruiterData = response.data.data.recruiter || JSON.parse(savedRecruiter);
+        // Update stored recruiter data
+        localStorage.setItem('recruiterData', JSON.stringify(recruiterData));
+        setRecruiter(recruiterData);
+        setIsAuthenticated(true);
+        
+        if (location.state?.from === '/') {
+          navigate('/dashboard', { replace: true, state: {} });
+        }
+      } else {
+        throw new Error('Invalid response format from server');
+      }
+    } catch (error) {
+      console.error('Authentication error:', error);
+      // Clear invalid auth data
+      localStorage.removeItem('recruiterToken');
+      localStorage.removeItem('recruiterData');
+      setIsAuthenticated(false);
+      
+      // Redirect to home if not already on login page
+      if (!location.pathname.includes('login')) {
+        toast.error('Your session has expired. Please log in again.');
+        navigate('/', { replace: true });
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [navigate, location]);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const token = localStorage.getItem('recruiterToken');
-        const savedRecruiter = localStorage.getItem('recruiterData');
-        
-        if (!token || !savedRecruiter) {
-          throw new Error('No authentication data found');
-        }
-
-        try {
-          // Try to verify the token with the backend
-          const response = await fetch('http://localhost:8000/api/v1/recruiter/me', {
-            method: 'GET',
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            credentials: 'include'
-          });
-          
-          const responseData = await response.json();
-          
-          if (response.ok && responseData.status === 'success' && responseData.data) {
-            // Update the stored recruiter data
-            const recruiterData = responseData.data.recruiter || JSON.parse(savedRecruiter);
-            localStorage.setItem('recruiterData', JSON.stringify(recruiterData));
-            setRecruiter(recruiterData);
-            setIsAuthenticated(true);
-          } else {
-            throw new Error('Invalid response from server');
-          }
-        } catch (error) {
-          console.error('Error verifying token:', error);
-          localStorage.removeItem('recruiterToken');
-          localStorage.removeItem('recruiterData');
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        console.error('Authentication check failed:', error);
-        setIsAuthenticated(false);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     checkAuth();
-  }, []);
+  }, [checkAuth]);
 
   return { isAuthenticated, isLoading, recruiter, showAuthModal, setShowAuthModal };
 };
@@ -74,18 +83,41 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('manage');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Set initial tab based on URL if provided
+  useEffect(() => {
+    const tabFromUrl = location.pathname.split('/dashboard/')[1];
+    if (tabFromUrl && ['manage', 'applicants', 'post'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [location.pathname]);
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    // Update URL without page reload
+    navigate(`/dashboard/${tab}`, { replace: true });
+  };
 
   const handleLogout = () => {
+    // Clear auth data
     localStorage.removeItem('recruiterToken');
     localStorage.removeItem('recruiterData');
-    navigate('/');
-    window.location.reload();
+    
+    // Redirect to home with a state to prevent showing login modal immediately
+    navigate('/', { 
+      state: { from: 'dashboard' },
+      replace: true 
+    });
+    
+    // Show logout message
+    toast.success('Successfully logged out');
   };
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
@@ -95,7 +127,11 @@ const Dashboard = () => {
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-4">
         <h1 className="text-2xl font-bold mb-4">Recruiter Dashboard</h1>
         <p className="mb-6 text-gray-600">Please sign in to access the recruiter dashboard</p>
-        <Button onClick={() => setShowAuthModal(true)}>
+        <Button 
+          onClick={() => setShowAuthModal(true)}
+          className="flex items-center gap-2"
+        >
+          <User className="h-4 w-4" />
           Sign In
         </Button>
         <RecruiterAuthModal 
@@ -103,7 +139,7 @@ const Dashboard = () => {
           onClose={() => setShowAuthModal(false)} 
           onSuccess={() => {
             setShowAuthModal(false);
-            window.location.reload();
+            // The auth check will handle the redirect
           }} 
         />
       </div>
@@ -130,7 +166,7 @@ const Dashboard = () => {
                 <User className="h-4 w-4 text-blue-600" />
               </div>
               <span className="hidden md:inline-block">
-                {recruiter?.name || 'Recruiter'}
+                {recruiter?.companyName || 'Recruiter'}
               </span>
               <ChevronDown className={`h-4 w-4 transition-transform ${showProfileDropdown ? 'transform rotate-180' : ''}`} />
             </Button>
@@ -159,7 +195,7 @@ const Dashboard = () => {
           </div>
           <nav className="space-y-1 flex-1">
             <button
-              onClick={() => setActiveTab('manage')}
+              onClick={() => handleTabChange('manage')}
               className={`w-full text-left px-4 py-2 rounded-md flex items-center ${
                 activeTab === 'manage' 
                   ? 'bg-blue-50 text-blue-600' 
@@ -171,7 +207,7 @@ const Dashboard = () => {
             </button>
             
             <button
-              onClick={() => setActiveTab('applicants')}
+              onClick={() => handleTabChange('applicants')}
               className={`w-full text-left px-4 py-2 rounded-md flex items-center ${
                 activeTab === 'applicants' 
                   ? 'bg-blue-50 text-blue-600' 
@@ -183,7 +219,7 @@ const Dashboard = () => {
             </button>
             
             <button
-              onClick={() => setActiveTab('post')}
+              onClick={() => handleTabChange('post')}
               className={`w-full text-left px-4 py-2 rounded-md flex items-center ${
                 activeTab === 'post' 
                   ? 'bg-blue-50 text-blue-600' 
@@ -224,7 +260,7 @@ const Dashboard = () => {
         <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
           {activeTab === 'manage' && <ManageJob />}
           {activeTab === 'applicants' && <ApplicantsTable />}
-          {activeTab === 'post' && <PostJob onSuccess={() => setActiveTab('manage')} />}
+          {activeTab === 'post' && <PostJob onSuccess={() => handleTabChange('manage')} />}
         </main>
       </div>
     </div>

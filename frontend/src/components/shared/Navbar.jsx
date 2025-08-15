@@ -20,7 +20,7 @@ const Navbar = () => {
       const token = localStorage.getItem('recruiterToken');
       if (token) {
         try {
-          const response = await fetch('http://localhost:8000/api/v1/recruiter/me', {
+          const response = await fetch('https://job-portal-v3b1.onrender.com/api/v1/recruiter/me', {
             method: 'GET',
             headers: { 
               'Authorization': `Bearer ${token}`,
@@ -131,7 +131,7 @@ const Navbar = () => {
                 </div>
               ) : (
                 <div className="hidden items-center space-x-3 md:flex">
-                  <SignInButton mode="modal" afterSignInUrl="/" afterSignUpUrl="/">
+                  <SignInButton mode="modal">
                     <Button variant="outline" className="bg-blue-500 text-white hover:bg-blue-600 hover:text-white border-0">
                       User Login
                     </Button>
@@ -187,7 +187,7 @@ const Navbar = () => {
                 </Link>
               ) : (
                 <div className="space-y-3 px-3 pt-2">
-                  <SignInButton mode="modal" afterSignInUrl="/" afterSignUpUrl="/">
+                  <SignInButton mode="modal">
                     <Button className="w-full bg-blue-500 text-white hover:bg-blue-600">
                       User Login
                     </Button>

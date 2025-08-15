@@ -184,6 +184,60 @@ const updateMe = async (req, res, next) => {
     });
   }
 };
+const updateApplicationStatus = async (req, res) => {
+  try {
+    const { applicationId, status } = req.body;
+    const recruiterId = req.id; // Changed from req.recruiter.id to req.id
+
+    // Validate input
+    if (!applicationId || !status) {
+      return res.status(400).json({
+        status: "error",
+        message: "Please provide both applicationId and status",
+      });
+    }
+
+    // Validate status value
+    if (!['pending', 'shortlisted', 'rejected', 'hired'].includes(status)) {
+      return res.status(400).json({
+        status: "error",
+        message: "Invalid status. Must be one of: pending, shortlisted, rejected, hired",
+      });
+    }
+
+    // Find and update the application
+    const updatedApplication = await JobApplication.findOneAndUpdate(
+      {
+        _id: applicationId,
+        recruiter: recruiterId, // Use the recruiterId from the request
+      },
+      { status },
+      { new: true, runValidators: true }
+    )
+    .populate('user', 'name email')
+    .populate('job', 'title');
+
+    if (!updatedApplication) {
+      return res.status(404).json({
+        status: "error",
+        message: "Application not found or you don't have permission to update it",
+      });
+    }
+
+    res.status(200).json({
+      status: "success",
+      data: {
+        application: updatedApplication,
+      },
+    });
+  } catch (error) {
+    console.error('Error updating application status:', error);
+    res.status(500).json({
+      status: "error",
+      message: error.message || "An error occurred while updating the application status",
+    });
+  }
+};
 
 
 
@@ -191,5 +245,6 @@ export {
   signup,
   login,
   getMe,
-  updateMe
+  updateMe,
+  updateApplicationStatus
 };

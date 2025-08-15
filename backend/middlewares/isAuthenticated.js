@@ -2,6 +2,11 @@ import jwt from "jsonwebtoken";
 
 const isAuthenticated = async (req, res, next) => {
     try {
+        // Handle preflight requests
+        if (req.method === 'OPTIONS') {
+            return next();
+        }
+
         // 1. Get token from Authorization header or cookies
         const authHeader = req.headers.authorization;
         const token = authHeader && authHeader.startsWith('Bearer ') 
@@ -28,7 +33,8 @@ const isAuthenticated = async (req, res, next) => {
             console.error('JWT verification failed:', jwtError.message);
             return res.status(401).json({
                 success: false,
-                message: "Invalid or expired token. Please log in again."
+                message: "Invalid or expired token. Please log in again.",
+                error: jwtError.message
             });
         }
 
@@ -45,11 +51,19 @@ const isAuthenticated = async (req, res, next) => {
         req.user = { _id: decoded.id };
         req.id = decoded.id; // For backward compatibility
         
+        // Set CORS headers
+        res.header('Access-Control-Allow-Origin', req.headers.origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        
         console.log('Authentication successful for user ID:', decoded.id);
         next();
 
     } catch (error) {
         console.error("Authentication error:", error);
+        // Set CORS headers for error responses
+        res.header('Access-Control-Allow-Origin', req.headers.origin);
+        res.header('Access-Control-Allow-Credentials', 'true');
+        
         return res.status(500).json({
             success: false,
             message: "Authentication failed. Please try again.",

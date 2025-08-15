@@ -37,7 +37,7 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
   'https://job-portal-v3b1.onrender.com',
-  'http://localhost:8000' // Add the backend URL
+  'http://job-portal-v3b1.onrender.com'
 ];
 
 // Configure CORS with enhanced security headers
@@ -46,32 +46,34 @@ const corsOptions = {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      return callback(null, true);
     }
-    return callback(null, true);
+    
+    console.log('CORS blocked for origin:', origin);
+    return callback(new Error('Not allowed by CORS'));
   },
-  credentials: true, // Important for cookies
+  credentials: true, // Important for cookies/session
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type', 
     'Authorization', 
     'X-Requested-With', 
     'Accept',
-    'Cross-Origin-Embedder-Policy',
-    'Cross-Origin-Resource-Policy',
-    'Cross-Origin-Opener-Policy'
+    'Origin',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials',
+    'Access-Control-Allow-Headers',
+    'Access-Control-Allow-Methods'
   ],
   exposedHeaders: [
-    'set-cookie', 
-    'Authorization', 
-    'Set-Cookie',
-    'Cross-Origin-Embedder-Policy',
-    'Cross-Origin-Resource-Policy',
-    'Cross-Origin-Opener-Policy'
+    'Content-Length',
+    'Content-Type',
+    'Authorization',
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials'
   ],
-  maxAge: 86400, // 24 hours
+  maxAge: 600, // 10 minutes
   preflightContinue: false,
   optionsSuccessStatus: 204
 };
@@ -79,13 +81,46 @@ const corsOptions = {
 // Apply CORS with options as one of the first middleware
 app.use(cors(corsOptions));
 
+// Handle preflight requests
+app.options('*', cors(corsOptions));
+
+// Add headers before the routes are defined
+app.use(function (req, res, next) {
+  // Allow from any origin
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  // Request methods you wish to allow
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
+
+  // Request headers you wish to allow
+  res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,authorization');
+
+  // Set to true if you need the website to include cookies in the requests sent
+  // to the API (e.g. in case you use sessions)
+  res.setHeader('Access-Control-Allow-Credentials', true);
+
+  // Pass to next layer of middleware
+  next();
+});
+
 // Request logging middleware
 app.use((req, res, next) => {
   // Skip logging for health checks
   if (req.originalUrl === '/health') {
     return next();
   }
-
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    return res.status(200).end();
+  }
   
   // Make a copy of the body for logging
   const bodyCopy = { ...req.body };
@@ -136,9 +171,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Apply CORS with options
-app.use(cors(corsOptions));
-
 // Add security headers middleware
 app.use((req, res, next) => {
   // Set security headers
@@ -152,9 +184,6 @@ app.use((req, res, next) => {
   
   next();
 });
-
-// Add security headers
-app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
 
 const PORT = process.env.PORT || 8000;
 app.use('/api/v1/user', userRouter);

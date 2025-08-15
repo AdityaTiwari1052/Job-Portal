@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { SignedIn, SignedOut, RedirectToSignIn, useAuth } from '@clerk/clerk-react';
-import { Toaster } from 'react-hot-toast';
+import { useEffect, useState, useCallback } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { SignedIn, SignedOut, useAuth } from '@clerk/clerk-react';
+import { Toaster } from 'sonner';
 import Navbar from './components/shared/Navbar';
 import Home from "./components/Home";
 import JobDescription from "./components/JobDescription";
@@ -9,6 +9,7 @@ import Dashboard from "./components/Dashboard";
 import AppliedJobTable from "./components/AppliedJobTable";
 import { ModalProvider } from './context/ModalContext';
 import { ThemeProvider } from './components/ui/theme-provider';
+import api from './utils/api';
 
 // Layout for routes that should have Navbar
 const NavbarLayout = () => {
@@ -22,58 +23,61 @@ const NavbarLayout = () => {
   );
 };
 
-// Public route wrapper (no auth logic now)
+// Public route wrapper
 const PublicRoute = ({ children }) => {
   const [isRecruiter, setIsRecruiter] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const location = useLocation();
+
+  const checkRecruiterAuth = useCallback(async () => {
+    const token = localStorage.getItem('recruiterToken');
+    const savedRecruiter = localStorage.getItem('recruiterData');
+    
+    if (!token || !savedRecruiter) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await api.get('/recruiter/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        withCredentials: true
+      });
+      
+      if (response.data?.status === 'success' && response.data.data) {
+        // Update stored recruiter data
+        const recruiterData = response.data.data.recruiter || JSON.parse(savedRecruiter);
+        localStorage.setItem('recruiterData', JSON.stringify(recruiterData));
+        setIsRecruiter(true);
+        // Only redirect if we're on the home page
+        if (location.pathname === '/') {
+          return <Navigate to="/dashboard" replace />;
+        }
+      } else {
+        throw new Error('Invalid session');
+      }
+    } catch (error) {
+      console.error('Error checking recruiter auth:', error);
+      localStorage.removeItem('recruiterToken');
+      localStorage.removeItem('recruiterData');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
-    const checkRecruiterAuth = async () => {
-      const token = localStorage.getItem('recruiterToken');
-      if (!token) {
-        setIsLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch('http://localhost:8000/api/v1/recruiter/me', {
-          method: 'GET',
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
-        
-        const responseData = await response.json();
-        
-        if (response.ok && responseData.status === 'success' && responseData.data) {
-          setIsRecruiter(true);
-          // Redirect to dashboard if on home page
-          if (window.location.pathname === '/') {
-            window.location.href = '/dashboard';
-          }
-        } else {
-          localStorage.removeItem('recruiterToken');
-          localStorage.removeItem('recruiterData');
-        }
-      } catch (error) {
-        console.error('Error checking recruiter auth:', error);
-        localStorage.removeItem('recruiterToken');
-        localStorage.removeItem('recruiterData');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     checkRecruiterAuth();
-  }, []);
+  }, [checkRecruiterAuth]);
 
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+    </div>;
   }
 
-  if (isRecruiter) {
+  if (isRecruiter && location.pathname === '/') {
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -84,51 +88,56 @@ const PublicRoute = ({ children }) => {
 const RecruiterRoute = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const location = useLocation();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('recruiterToken');
-      if (!token) {
-        setIsLoading(false);
-        return;
+  const checkAuth = useCallback(async () => {
+    const token = localStorage.getItem('recruiterToken');
+    const savedRecruiter = localStorage.getItem('recruiterData');
+    
+    if (!token || !savedRecruiter) {
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const response = await api.get('/recruiter/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        withCredentials: true
+      });
+      
+      if (response.data?.status === 'success' && response.data.data) {
+        // Update stored recruiter data
+        const recruiterData = response.data.data.recruiter || JSON.parse(savedRecruiter);
+        localStorage.setItem('recruiterData', JSON.stringify(recruiterData));
+        setIsAuthenticated(true);
+      } else {
+        throw new Error('Invalid session');
       }
-
-      try {
-        const response = await fetch('http://localhost:8000/api/v1/recruiter/me', {
-          method: 'GET',
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          credentials: 'include'
-        });
-        
-        const responseData = await response.json();
-        
-        if (response.ok && responseData.status === 'success' && responseData.data) {
-          localStorage.setItem('recruiterData', JSON.stringify(responseData.data.recruiter));
-          setIsAuthenticated(true);
-        } else {
-          throw new Error('Invalid token');
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-        localStorage.removeItem('recruiterToken');
-        localStorage.removeItem('recruiterData');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkAuth();
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      localStorage.removeItem('recruiterToken');
+      localStorage.removeItem('recruiterData');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div className="flex items-center justify-center min-h-screen">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+    </div>;
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    // Store the attempted URL for redirecting after login
+    const redirectPath = location.pathname === '/dashboard' ? '/' : location.pathname;
+    return <Navigate to="/" state={{ from: redirectPath }} replace />;
   }
 
   return children;
@@ -169,7 +178,7 @@ function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
             
-            {/* Dashboard route without Navbar */}
+            {/* Dashboard route */}
             <Route
               path="/dashboard/*"
               element={
@@ -199,7 +208,21 @@ function App() {
             />
           </Routes>
           
-          <Toaster position="top-right" />
+          <Toaster 
+            position="top-right"
+            richColors
+            closeButton
+            toastOptions={{
+              style: {
+                background: 'hsl(var(--background))',
+                color: 'hsl(var(--foreground))',
+                border: '1px solid hsl(var(--border))',
+                fontFamily: 'Inter, sans-serif',
+              },
+              duration: 3000,
+              className: 'toast',
+            }}
+          />
         </Router>
       </ModalProvider>
     </ThemeProvider>

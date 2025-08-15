@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { RECRUITER_API_END_POINT } from '../utils/constant';
 
 const AppContext = createContext();
 
@@ -18,15 +19,29 @@ export const AppProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Create axios instance with default config
+  const api = axios.create({
+    baseURL: RECRUITER_API_END_POINT,
+    withCredentials: true,
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json'
+    }
+  });
+
   // Fetch recruiter and company data
   const fetchRecruiterData = async () => {
     try {
       setIsLoading(true);
-      const response = await axios.get('http://localhost:8000/api/v1/recruiter/me', {
-        withCredentials: true,
+      const token = localStorage.getItem('recruiterToken');
+      
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await api.get('/me', {
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${token}`
         }
       });
       
@@ -37,6 +52,11 @@ export const AppProvider = ({ children }) => {
     } catch (err) {
       console.error('Error fetching recruiter data:', err);
       setError(err.response?.data?.message || 'Failed to load recruiter data');
+      
+      // Clear invalid token if request fails with 401
+      if (err.response?.status === 401) {
+        localStorage.removeItem('recruiterToken');
+      }
     } finally {
       setIsLoading(false);
     }

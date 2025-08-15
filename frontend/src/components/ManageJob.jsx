@@ -3,8 +3,7 @@ import { Button } from './ui/button';
 import { Pencil, Eye, Trash2, Calendar, MapPin, Users, EyeOff, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import axios from 'axios';
-import { JOB_API_END_POINT } from '../utils/constant';
+import api from '../utils/api';
 
 const ManageJob = () => {
   const [jobs, setJobs] = useState([]);
@@ -20,24 +19,18 @@ const ManageJob = () => {
   const fetchJobs = async () => {
     try {
       setLoading(true);
-      console.log('Fetching jobs from:', `${JOB_API_END_POINT}/recruiter/my-jobs`);
-      const response = await axios.get(`${JOB_API_END_POINT}/recruiter/my-jobs`, {
-        withCredentials: true,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      });
-      console.log('Jobs response:', response.data);
-      setJobs(Array.isArray(response.data.jobs) ? response.data.jobs : []);
       setError(null);
+      
+      const response = await api.get('/jobs/recruiter/my-jobs');
+      
+      if (response.data?.success) {
+        setJobs(Array.isArray(response.data.jobs) ? response.data.jobs : []);
+      } else {
+        throw new Error(response.data?.message || 'Failed to fetch jobs');
+      }
     } catch (error) {
-      console.error('Error fetching jobs:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status
-      });
-      setError('Failed to load jobs. Please try again later.');
+      console.error('Error fetching jobs:', error);
+      setError(error.response?.data?.message || 'Failed to load jobs. Please try again.');
       setJobs([]);
       toast.error('Failed to load jobs');
     } finally {
@@ -48,19 +41,22 @@ const ManageJob = () => {
   const toggleVisibility = async (jobId, currentVisibility) => {
     try {
       setUpdating(jobId);
-      const response = await axios.patch(
-        `${JOB_API_END_POINT}/${jobId}/visibility`,
-        { isVisible: !currentVisibility },
-        { withCredentials: true }
-      );
       
-      setJobs(jobs.map(job => 
-        job._id === jobId ? { ...job, isVisible: response.data.isVisible } : job
-      ));
-      toast.success(`Job ${!currentVisibility ? 'published' : 'hidden'} successfully`);
+      const response = await api.patch(`/jobs/${jobId}/visibility`, {
+        isVisible: !currentVisibility
+      });
+      
+      if (response.data?.success) {
+        setJobs(jobs.map(job => 
+          job._id === jobId ? { ...job, isVisible: response.data.isVisible } : job
+        ));
+        toast.success(`Job ${!currentVisibility ? 'published' : 'hidden'} successfully`);
+      } else {
+        throw new Error(response.data?.message || 'Failed to update job visibility');
+      }
     } catch (error) {
       console.error('Error toggling visibility:', error);
-      toast.error('Failed to update job visibility');
+      toast.error(error.response?.data?.message || 'Failed to update job visibility');
     } finally {
       setUpdating(null);
     }
@@ -90,7 +86,12 @@ const ManageJob = () => {
     return (
       <div className="text-center py-12">
         <p className="text-red-500">{error}</p>
-        <Button className="mt-4" onClick={fetchJobs}>
+        <Button 
+          className="mt-4" 
+          onClick={fetchJobs}
+          disabled={loading}
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
           Retry
         </Button>
       </div>
@@ -125,7 +126,7 @@ const ManageJob = () => {
                 </div>
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Visible
+                Visibility
               </th>
             </tr>
           </thead>
@@ -143,7 +144,7 @@ const ManageJob = () => {
                   {job.location || 'Remote'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {job.applications?.length || 0} applicants
+                  {job.applications?.length || 0} applicant{job.applications?.length !== 1 ? 's' : ''}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-center">
                   <Button
@@ -168,7 +169,7 @@ const ManageJob = () => {
           </tbody>
         </table>
         {jobs.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-12 text-gray-500">
             No jobs found. Create your first job post.
           </div>
         )}

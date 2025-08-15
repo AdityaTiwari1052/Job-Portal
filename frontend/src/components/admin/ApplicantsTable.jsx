@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import { Check, X, Download, User, Mail, Phone, Calendar as CalendarIcon, Briefcase, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { setAllApplicants } from '../../redux/applicationSlice';
-import axios from 'axios';
+import api from '../../utils/api';
 
 const selectApplicants = createSelector(
   (state) => state.application.applicants,
@@ -20,75 +20,81 @@ const ApplicantsTable = () => {
 
   const fetchApplicants = async () => {
     try {
-        setIsLoading(true);
-        setError(null);
-        
-        const token = localStorage.getItem('recruiterToken');
-        console.log('Auth Token:', token ? 'Token exists' : 'No token found');
-        
-        if (!token) {
-            throw new Error('No authentication token found. Please log in again.');
-        }
+      setIsLoading(true);
+      setError(null);
+      
+      // Get the recruiter token
+      const token = localStorage.getItem('recruiterToken');
+      console.log('Recruiter Token:', token ? 'Token exists' : 'No token found');
+      
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
 
-        console.log('Fetching applicants...');
-        const response = await fetch('http://localhost:8000/api/v1/user/me/applicants', {
-            method: 'GET',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
-            credentials: 'include'
-        });
-
-        const data = await response.json();
+      console.log('Fetching applicants...');
+      // Use the existing user/me/applicants endpoint
+      const response = await api.get('/user/me/applicants', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.data?.success) {
+        const applications = response.data.data?.applications || [];
+        console.log('Fetched applications:', applications);
         
-        if (!response.ok) {
-            throw new Error(data.message || 'Failed to fetch applicants');
-        }
-
-        if (data?.success) {
-            const formattedApplicants = data.data?.applications || [];
-            console.log('Formatted applicants:', formattedApplicants);
-            dispatch(setAllApplicants(formattedApplicants));
-        } else {
-            throw new Error(data?.message || 'Failed to fetch applicants');
-        }
+        // Transform the data to match what the frontend expects
+        const formattedApplicants = applications.map(app => ({
+          _id: app._id,
+          status: app.status,
+          appliedAt: app.appliedAt,
+          job: app.job,
+          user: app.applicant,
+          resume: app.applicant?.resume
+        }));
+        
+        dispatch(setAllApplicants(formattedApplicants));
+      } else {
+        throw new Error(response.data?.message || 'Failed to fetch applicants');
+      }
     } catch (err) {
-        console.error('Error details:', {
-            message: err.message,
-            stack: err.stack
-        });
-
-        let errorMessage = 'Failed to load applicants. ';
-        errorMessage += err.message || 'Please try again later.';
-        
-        setError(errorMessage);
-        toast.error(errorMessage);
+      console.error('Error details:', {
+        message: err.message,
+        stack: err.stack
+      });
+      setError(err.message || 'Failed to load applicants');
+      toast.error(err.message || 'Failed to load applicants');
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
-};
+  };
   useEffect(() => {
     fetchApplicants();
   }, [dispatch]);
 
   const handleStatusUpdate = async (applicationId, status) => {
     try {
-      const response = await axios.patch(`http://localhost:8000/api/v1/applications/${applicationId}/status`, { status }, {
-        withCredentials: true,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+      const response = await api.patch(
+        `/recruiter/applications/status`, 
+
+        { applicationId,status },
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('recruiterToken')}`
+          }
         }
-      });
-      if (response.data.success) {
-        toast.success(`Application ${status} successfully`);
-        fetchApplicants(); // Refresh the list
+      );
+      
+      if (response.data?.success=='success') {
+        toast.success('Application status updated successfully');
+        // Refresh the applicants list
+        await fetchApplicants();
+      } else {
+        throw new Error(response.data?.message || 'Failed to update status');
       }
-    } catch (err) {
-      console.error('Error updating status:', err);
-      toast.error(err.response?.data?.message || 'Failed to update status');
+    } catch (error) {
+      console.error('Error updating application status:', error);
+      toast.error(error.response?.data?.message || 'Failed to update application status');
     }
   };
 
@@ -151,11 +157,11 @@ const ApplicantsTable = () => {
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
                   <div className="flex-shrink-0 h-10 w-10">
-                    {application.applicant?.profilePicture ? (
+                    {application.user?.profilePicture ? (
                       <img 
                         className="h-10 w-10 rounded-full" 
-                        src={application.applicant.profilePicture} 
-                        alt={application.applicant.name} 
+                        src={application.user.profilePicture} 
+                        alt={application.user.name} 
                       />
                     ) : (
                       <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
@@ -165,11 +171,11 @@ const ApplicantsTable = () => {
                   </div>
                   <div className="ml-4">
                     <div className="text-sm font-medium text-gray-900">
-                      {application.applicant?.name || 'N/A'}
+                      {application.user?.name || 'N/A'}
                     </div>
                     <div className="text-sm text-gray-500 flex items-center">
                       <Mail className="h-3.5 w-3.5 mr-1" />
-                      {application.applicant?.email || 'N/A'}
+                      {application.user?.email || 'N/A'}
                     </div>
                   </div>
                 </div>

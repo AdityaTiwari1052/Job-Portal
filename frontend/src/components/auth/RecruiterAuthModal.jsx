@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, Mail, Lock, User, Eye, EyeOff, Upload, ArrowLeft, CheckCircle, LogIn } from 'lucide-react';
-import { useClerk } from '@clerk/clerk-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import api from '../../utils/api';
 
 const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
   const [isLogin, setIsLogin] = useState(true); 
@@ -19,7 +19,6 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const fileInputRef = useRef(null);
-  const { setActive } = useClerk();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -101,38 +100,28 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
     if (isLogin) {
       try {
         setIsLoading(true);
-        const response = await fetch('http://localhost:8000/api/v1/recruiter/login', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            password: formData.password,
-          }),
-          credentials: 'include'
+        const response = await api.post('/recruiter/login', {
+          email: formData.email,
+          password: formData.password,
         });
-        
-        const responseData = await response.json();
 
-        if (!response.ok) {
-          throw new Error(responseData.message || 'Login failed');
-        }
-
-        if (responseData.status === 'success' && responseData.token) {
-          localStorage.setItem('recruiterToken', responseData.token);
-          localStorage.setItem('recruiterData', JSON.stringify(responseData.data.recruiter));
+        if (response.data?.status === 'success' && response.data.token) {
+          // Store the token and recruiter data
+          localStorage.setItem('recruiterToken', response.data.token);
+          localStorage.setItem('recruiterData', JSON.stringify(response.data.recruiter));
           
+          // Force a page reload to ensure all components re-initialize with the new auth state
+          window.location.href = '/dashboard';
+          
+          // Close the modal and show success message
           onClose();
           toast.success('Login successful!');
-          
-          window.location.href = '/dashboard';
         } else {
-          throw new Error(responseData.message || 'Invalid response from server');
+          throw new Error(response.data?.message || 'Invalid response from server');
         }
       } catch (error) {
         console.error('Login error:', error);
-        toast.error(error.message || 'Login failed. Please check your credentials.');
+        toast.error(error.response?.data?.message || 'Login failed. Please check your credentials.');
       } finally {
         setIsLoading(false);
       }
@@ -157,34 +146,31 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
         formDataToSend.append('logo', formData.companyLogo);
       }
 
-      const response = await fetch('http://localhost:8000/api/v1/recruiter/signup', {
-        method: 'POST',
-        body: formDataToSend,
+      const response = await api.post('/signup', formDataToSend, {
         headers: {
-          'Accept': 'application/json'
-    },
-    credentials: 'include'
-        
+          'Content-Type': 'multipart/form-data'
+        }
       });
       
-      const responseData = await response.json();
-      if (!response.ok) {
-        throw new Error(responseData.message || 'Signup failed');
-      }
-      
-      if (responseData.status === 'success' && responseData.token) {
-        localStorage.setItem('recruiterToken', responseData.token);
-        localStorage.setItem('recruiterData', JSON.stringify(responseData.data.recruiter));
-        onClose();
+      if (response.data?.status === 'success' && response.data.token) {
+        localStorage.setItem('recruiterToken', response.data.token);
+        localStorage.setItem('recruiterData', JSON.stringify(response.data.recruiter));
+        
         toast.success('Registration successful!');
-        window.location.replace('/');
+        onClose();
+        
+        // Use the onSuccess callback if provided, otherwise redirect to home
+        if (onSuccess) {
+          onSuccess();
+        } else {
+          window.location.href = '/dashboard';
+        }
       } else {
-        throw new Error(responseData.message || 'Invalid response from server');
+        throw new Error(response.data?.message || 'Invalid response from server');
       }
     } catch (error) {
       console.error('Registration error:', error);
-      const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
-      toast.error(errorMessage);
+      toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -280,7 +266,10 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                 <div className="text-center mt-4">
                   <button
                     type="button"
-                    onClick={() => setIsLogin(false)}
+                    onClick={() => {
+                      setIsLogin(false);
+                      setCurrentStep(1);
+                    }}
                     className="text-sm font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
                   >
                     Don't have an account? Sign up
@@ -302,6 +291,7 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                         onChange={handleInputChange}
                         placeholder="Company Name"
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
                       />
                     </div>
 
@@ -316,6 +306,7 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                         onChange={handleInputChange}
                         placeholder="Email address"
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
                       />
                     </div>
 
@@ -331,6 +322,7 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                         placeholder="Password (min 6 characters)"
                         className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         minLength={6}
+                        required
                       />
                       <button
                         type="button"
@@ -358,7 +350,10 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                   <div className="text-center mt-4">
                     <button
                       type="button"
-                      onClick={() => setIsLogin(true)}
+                      onClick={() => {
+                        setIsLogin(true);
+                        setCurrentStep(1);
+                      }}
                       className="text-sm font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
                     >
                       Already have an account? Sign in
