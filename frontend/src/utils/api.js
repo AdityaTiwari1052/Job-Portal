@@ -3,7 +3,7 @@ import { getApiBaseUrl } from './constant';
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: getApiBaseUrl(), // Use the base URL without the /recruiter suffix
+  baseURL: getApiBaseUrl(),
   withCredentials: true,
   headers: {
     'Accept': 'application/json',
@@ -13,14 +13,18 @@ const api = axios.create({
 
 // Add a request interceptor to include the auth token
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('recruiterToken');
-    if (token) {
-      // Ensure the token is properly formatted (remove any quotes if present)
-      const cleanToken = token.replace(/^"|"$/g, '');
-      config.headers.Authorization = `Bearer ${cleanToken}`;
-      // Ensure we're sending credentials with every request
-      config.withCredentials = true;
+  async (config) => {
+    try {
+      // Get the Clerk session token
+      const token = window.Clerk?.session?.getToken();
+      if (token) {
+        const sessionToken = await token;
+        if (sessionToken) {
+          config.headers.Authorization = `Bearer ${sessionToken}`;
+        }
+      }
+    } catch (error) {
+      console.error('Error getting Clerk token:', error);
     }
     return config;
   },
@@ -37,42 +41,26 @@ api.interceptors.response.use(
   (error) => {
     const originalRequest = error.config;
     
-    // Prevent infinite retry loops
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      // Clear auth data
-      localStorage.removeItem('recruiterToken');
-      localStorage.removeItem('recruiterData');
-      
-      // Only redirect if not already on login page and not an API request
-      if (!window.location.pathname.includes('login') && 
-          !originalRequest.url.includes('/recruiter/me')) {
-        window.location.href = '/';
+    // Handle 401 Unauthorized
+    if (error.response?.status === 401) {
+      // Clear any existing session
+      if (window.Clerk?.signOut) {
+        window.Clerk.signOut();
       }
       
-      return Promise.reject(error);
+      // Redirect to login if not already there
+      if (!window.location.pathname.includes('login')) {
+        window.location.href = '/';
+      }
     }
     
     // Handle other error statuses
     if (error.response) {
-      // Handle 403 Forbidden
-      if (error.response.status === 403) {
-        console.error('Forbidden: You do not have permission to access this resource');
-        toast.error('You do not have permission to access this resource');
-      }
-      
-      // Handle 500 Internal Server Error
-      if (error.response.status >= 500) {
-        console.error('Server Error:', error.response.data);
-        toast.error('Server error. Please try again later.');
-      }
+      console.error('API Error:', error.response.data);
     } else if (error.request) {
       console.error('No response received:', error.request);
-      toast.error('No response from server. Please check your connection.');
     } else {
       console.error('Request setup error:', error.message);
-      toast.error(`Request error: ${error.message}`);
     }
     
     return Promise.reject(error);

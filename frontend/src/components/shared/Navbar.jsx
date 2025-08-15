@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { useUser, UserButton, useAuth, SignInButton } from '@clerk/clerk-react';
+import { UserButton, useAuth, SignInButton, SignOutButton } from '@clerk/clerk-react';
 import { Button } from '../ui/button';
 import { Menu, X } from 'lucide-react';
 import RecruiterAuthModal from '../auth/RecruiterAuthModal';
@@ -8,82 +8,38 @@ import RecruiterAuthModal from '../auth/RecruiterAuthModal';
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isRecruiterModalOpen, setIsRecruiterModalOpen] = useState(false);
-  const [isRecruiter, setIsRecruiter] = useState(false);
-  const { isSignedIn } = useAuth();
-  const { user } = useUser();
+  const { isSignedIn, isLoaded } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-
-  // Check recruiter auth status on mount and when location changes
-  useEffect(() => {
-    const checkRecruiterAuth = async () => {
-      const token = localStorage.getItem('recruiterToken');
-      if (token) {
-        try {
-          const response = await fetch('https://job-portal-v3b1.onrender.com/api/v1/recruiter/me', {
-            method: 'GET',
-            headers: { 
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            credentials: 'include'
-          });
-          
-          const responseData = await response.json();
-          
-          if (response.ok && responseData.status === 'success' && responseData.data) {
-            setIsRecruiter(true);
-            // If on home page and recruiter is logged in, redirect to dashboard
-            if (window.location.pathname === '/') {
-              navigate('/dashboard');
-            }
-          } else {
-            setIsRecruiter(false);
-            localStorage.removeItem('recruiterToken');
-            localStorage.removeItem('recruiterData');
-          }
-        } catch (error) {
-          console.error('Error checking recruiter auth:', error);
-          setIsRecruiter(false);
-          localStorage.removeItem('recruiterToken');
-          localStorage.removeItem('recruiterData');
-        }
-      } else {
-        setIsRecruiter(false);
-      }
-    };
-
-    checkRecruiterAuth();
-  }, [navigate, location.pathname]);
 
   // Close mobile menu when route changes
   useEffect(() => {
     setIsMenuOpen(false);
   }, [location.pathname]);
 
+  // Hide navbar on dashboard routes
+  if (location.pathname.startsWith('/dashboard')) {
+    return null;
+  }
+
   // Don't show navbar on auth pages
   if (location.pathname.startsWith('/sign-')) {
     return null;
   }
+
+  // Check if user is authenticated (either through Clerk or as recruiter)
+  const isAuthenticated = isSignedIn || localStorage.getItem('recruiterToken');
 
   const handleRecruiterLogin = (e) => {
     e.preventDefault();
     setIsRecruiterModalOpen(true);
   };
 
+  // Handle recruiter logout
   const handleRecruiterLogout = () => {
     localStorage.removeItem('recruiterToken');
     localStorage.removeItem('recruiterData');
-    setIsRecruiter(false);
-    navigate('/');
-    window.location.reload();
-  };
-
-  const handleRecruiterSuccess = () => {
-    setIsRecruiterModalOpen(false);
-    setIsRecruiter(true);
-    navigate('/dashboard');
-    window.location.reload(); // Force a full page reload to ensure state is updated
+    window.location.href = '/';
   };
 
   return (
@@ -98,50 +54,53 @@ const Navbar = () => {
           <div className="flex items-center space-x-4">
             {/* Desktop Navigation */}
             <nav className="hidden items-center space-x-6 md:flex">
-              {isRecruiter && (
-                <Link 
-                  to="/dashboard" 
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-                >
-                  Dashboard
-                </Link>
-              )}
-              {isSignedIn && !isRecruiter && (
-                <Link 
-                  to="/applied-jobs" 
-                  className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
-                >
-                  My Applications
-                </Link>
+              {isAuthenticated && (
+                <>
+                  <Link 
+                    to="/dashboard" 
+                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+                  >
+                    Dashboard
+                  </Link>
+                  <Link 
+                    to="/applied-jobs" 
+                    className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary"
+                  >
+                    My Applications
+                  </Link>
+                </>
               )}
             </nav>
 
             {/* User Menu */}
             <div className="flex items-center space-x-3">
-              {isRecruiter ? (
-                <Button 
-                  onClick={handleRecruiterLogout}
-                  className="bg-red-500 text-white hover:bg-red-600"
-                >
-                  Logout
-                </Button>
-              ) : isSignedIn ? (
-                <div className="flex items-center space-x-4">
-                  <UserButton afterSignOutUrl="/" />
-                </div>
-              ) : (
-                <div className="hidden items-center space-x-3 md:flex">
+              {!isAuthenticated && (
+                <div className="hidden md:flex items-center space-x-4">
                   <SignInButton mode="modal">
-                    <Button variant="outline" className="bg-blue-500 text-white hover:bg-blue-600 hover:text-white border-0">
-                      User Login
-                    </Button>
+                    <Button variant="outline">Sign In</Button>
                   </SignInButton>
                   <Button 
-                    onClick={handleRecruiterLogin} 
-                    className="bg-purple-600 text-white hover:bg-purple-700"
+                    onClick={handleRecruiterLogin}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     Recruiter Login
                   </Button>
+                </div>
+              )}
+
+              {isAuthenticated && (
+                <div className="hidden md:flex items-center space-x-4">
+                  {isSignedIn ? (
+                    <UserButton afterSignOutUrl="/" />
+                  ) : (
+                    <Button 
+                      onClick={handleRecruiterLogout}
+                      variant="outline"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                    >
+                      Logout
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -163,7 +122,7 @@ const Navbar = () => {
         {isMenuOpen && (
           <div className="md:hidden">
             <div className="space-y-1 border-t px-4 py-3">
-              {isRecruiter ? (
+              {isAuthenticated ? (
                 <>
                   <Link
                     to="/dashboard"
@@ -171,20 +130,30 @@ const Navbar = () => {
                   >
                     Dashboard
                   </Link>
-                  <button
-                    onClick={handleRecruiterLogout}
-                    className="w-full text-left block px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50 rounded-md"
+                  <Link
+                    to="/applied-jobs"
+                    className="block rounded-md px-3 py-2 text-base font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   >
-                    Logout
-                  </button>
+                    My Applications
+                  </Link>
+                  <div className="pt-2">
+                    {isSignedIn ? (
+                      <SignOutButton>
+                        <Button variant="outline" className="w-full">
+                          Sign Out
+                        </Button>
+                      </SignOutButton>
+                    ) : (
+                      <Button 
+                        onClick={handleRecruiterLogout}
+                        variant="outline"
+                        className="w-full text-red-600 border-red-200 hover:bg-red-50"
+                      >
+                        Logout
+                      </Button>
+                    )}
+                  </div>
                 </>
-              ) : isSignedIn ? (
-                <Link
-                  to="/applied-jobs"
-                  className="block rounded-md px-3 py-2 text-base font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                >
-                  My Applications
-                </Link>
               ) : (
                 <div className="space-y-3 px-3 pt-2">
                   <SignInButton mode="modal">
@@ -194,7 +163,7 @@ const Navbar = () => {
                   </SignInButton>
                   <Button 
                     onClick={handleRecruiterLogin}
-                    className="w-full bg-purple-600 text-white hover:bg-purple-700"
+                    className="w-full bg-blue-600 text-white hover:bg-blue-700"
                   >
                     Recruiter Login
                   </Button>
@@ -209,7 +178,6 @@ const Navbar = () => {
       <RecruiterAuthModal 
         isOpen={isRecruiterModalOpen}
         onClose={() => setIsRecruiterModalOpen(false)}
-        onSuccess={handleRecruiterSuccess}
       />
     </>
   );

@@ -36,5 +36,5 @@ console.log(`Using ${isDev ? 'development' : 'production'} API URL:`, BASE_URL);
 export const getApiBaseUrl = () => BASE_URL;
 export const USER_API_END_POINT = `${BASE_URL}/user`;
 export const JOB_API_END_POINT = `${BASE_URL}/jobs`;
-export const APPLICATION_API_END_POINT = `${BASE_URL}/application`;
+export const APPLICATION_API_END_POINT = `${BASE_URL}/user`;
 export const RECRUITER_API_END_POINT = `${BASE_URL}/recruiter`;

@@ -110,12 +110,12 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
           localStorage.setItem('recruiterToken', response.data.token);
           localStorage.setItem('recruiterData', JSON.stringify(response.data.recruiter));
           
-          // Force a page reload to ensure all components re-initialize with the new auth state
-          window.location.href = '/dashboard';
-          
           // Close the modal and show success message
           onClose();
           toast.success('Login successful!');
+          
+          // Use window.location.href for a full page reload to ensure proper state
+          window.location.href = '/dashboard';
         } else {
           throw new Error(response.data?.message || 'Invalid response from server');
         }

@@ -16,16 +16,29 @@ import jobRoute from "./routes/job.route.js";
 import recruiterRoute from "./routes/recruiter.route.js";
 import webhookRoutes from './routes/webhook.route.js';
 import testEndpoint from "./test-endpoint.js";
-
 const app = express();
 
+// Webhook endpoint (must be before body parser and other middleware)
+console.log('Registering webhook endpoint at /api/webhook');
+app.use('/api/webhook', (req, res, next) => {
+    console.log('Webhook request received at:', req.originalUrl);
+    next();
+}, webhookRoutes);
+
 // Body parsers
-app.use(express.json({ verify: (req, res, buf) => {
-    req.rawBody = buf.toString();
-}}));
-app.use(express.urlencoded({ extended: true, verify: (req, res, buf) => {
-    req.rawBody = buf.toString();
-}}));
+app.use(express.json({ 
+    verify: (req, res, buf) => {
+        req.rawBody = buf.toString();
+    } 
+}));
+
+app.use(express.urlencoded({ 
+    extended: true, 
+    verify: (req, res, buf) => {
+        req.rawBody = buf.toString();
+    }
+}));
+
 app.use(cookieParser());
 
 // Request logging middleware
@@ -92,14 +105,12 @@ app.use(function (req, res, next) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   
-  // Request methods you wish to allow
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
 
   // Request headers you wish to allow
   res.setHeader('Access-Control-Allow-Headers', 'X-Requested-With,content-type,authorization');
 
-  // Set to true if you need the website to include cookies in the requests sent
-  // to the API (e.g. in case you use sessions)
+
   res.setHeader('Access-Control-Allow-Credentials', true);
 
   // Pass to next layer of middleware
@@ -185,21 +196,23 @@ app.use((req, res, next) => {
   next();
 });
 
-const PORT = process.env.PORT || 8000;
+// API Routes
 app.use('/api/v1/user', userRouter);
-app.use('/api/v1/webhooks', webhookRoutes);
-app.use("/api/v1/jobs",jobRoute);
+app.use("/api/v1/jobs", jobRoute);
 app.use("/api/v1/recruiter", recruiterRoute);
 
-// Test logging endpoint
+// Test endpoint
 app.use('/test', testEndpoint);
 
-// Health check endpoint
+// Static files and SPA fallback (MUST BE LAST)
 app.use(express.static(path.join(__dirname, "..", "frontend", "dist")));
 app.get("*", (req, res) => {
   res.sendFile(path.resolve(__dirname, "..", "frontend", "dist", "index.html"));
 });
 
+const PORT = process.env.PORT || 8000;
+
+// Health check endpoint
 // Start Server
 const startServer = async () => {
   await connectDB(); // Ensure database is connected first

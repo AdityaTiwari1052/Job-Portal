@@ -11,15 +11,13 @@ const router = express.Router();
 
 // Public routes
 router.get("/all", getAllJobs);
+router.get("/:id", getJobById);  // Moved before authentication middleware
 
 // Protected routes (require authentication)
 router.use(isAuthenticated);
 
 // Recruiter routes
-router.get("/recruiter/my-jobs", getJobsByRecruiter);  // Moved before /:id route
+router.get("/recruiter/my-jobs", getJobsByRecruiter);
 router.post("/", postJob);
-
-// This should be the last route as it's a catch-all for IDs
-router.get("/:id", getJobById);
 
 export default router;

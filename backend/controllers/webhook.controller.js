@@ -1,3 +1,5 @@
+console.log('Webhook controller loaded');
+
 import { Webhook } from 'svix';
 import User from '../models/user.model.js';
 
@@ -7,22 +9,30 @@ import User from '../models/user.model.js';
  * This endpoint receives webhook events from Clerk and processes them
  */
 export const handleClerkWebhook = async (req, res, next) => {
+    console.log('=== NEW WEBHOOK REQUEST ===');
+    console.log('Headers:', JSON.stringify(req.headers, null, 2));
+    
     try {
         // 1. Verify the webhook signature
         const svixId = req.headers['svix-id'];
         const svixTimestamp = req.headers['svix-timestamp'];
         const svixSignature = req.headers['svix-signature'];
 
+        console.log('Webhook received with headers:', { svixId, svixTimestamp, svixSignature });
+
         // Verify required headers are present
         if (!svixId || !svixTimestamp || !svixSignature) {
             console.error('Missing required headers');
-            return next(new AppError('Missing required headers', 400));
+            return res.status(400).json({ error: 'Missing required headers' });
         }
 
         // Get the raw body
-        const payload = req.body;
+        const payload = req.rawBody ? req.rawBody : req.body;
+        console.log('Raw payload:', payload);
+
         if (!payload) {
-            return next(new AppError('Missing request body', 400));
+            console.error('Missing request body');
+            return res.status(400).json({ error: 'Missing request body' });
         }
 
         // Verify the webhook signature
@@ -37,7 +47,7 @@ export const handleClerkWebhook = async (req, res, next) => {
             });
         } catch (err) {
             console.error('Webhook verification failed:', err);
-            return next(new AppError('Invalid webhook signature', 400));
+            return res.status(400).json({ error: 'Invalid webhook signature' });
         }
 
         // Process the webhook event
@@ -82,10 +92,15 @@ export const handleClerkWebhook = async (req, res, next) => {
  * @param {Object} userData - User data from Clerk
  */
 const handleUserUpsert = async (userData) => {
+    console.log('=== USER DATA FROM CLERK ===');
+    console.log('User Data:', JSON.stringify(userData, null, 2));
+    
     const { id: clerkId, email_addresses, first_name, last_name, image_url, username } = userData;
     
     // Get primary email
     const primaryEmail = email_addresses?.find(email => email.id === userData.primary_email_address_id)?.email_address;
+    
+    console.log('Extracted Data:', { clerkId, primaryEmail, first_name, last_name, username });
     
     if (!primaryEmail) {
         console.error('No primary email found for user:', clerkId);
@@ -100,6 +115,8 @@ const handleUserUpsert = async (userData) => {
         profilePicture: image_url,
         lastSyncedAt: new Date()
     };
+
+    console.log('User Data to Update:', userDataToUpdate);
 
     // Update or create user
     const user = await User.findOneAndUpdate(
@@ -127,26 +144,17 @@ const handleUserUpsert = async (userData) => {
  * @param {Object} userData - User data from Clerk
  */
 const handleUserDelete = async (userData) => {
-    const { id: clerkId } = userData;
+    const { id: clerkUserId } = userData;
     
-    // Soft delete by marking as inactive instead of removing
-    const result = await User.findOneAndUpdate(
-        { clerkId },
-        { 
-            $set: { 
-                isActive: false,
-                deletedAt: new Date()
-            } 
-        },
-        { new: true }
-    );
+    // Delete the user from your database
+    const result = await User.findOneAndDelete({ clerkUserId });
 
     if (!result) {
-        console.warn(`User ${clerkId} not found for deletion`);
+        console.warn(`User ${clerkUserId} not found for deletion`);
         return null;
     }
 
-    console.log(`User ${clerkId} marked as inactive`);
+    console.log(`User ${clerkUserId} deleted successfully`);
     return result;
 };
 
