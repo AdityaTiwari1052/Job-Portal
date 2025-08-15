@@ -1,213 +1,141 @@
-import { GoogleOAuthProvider, GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from "jwt-decode";
-import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { Label } from "../ui/label";
-import { Input } from "../ui/input";
-import { Button } from "../ui/button";
-import { Link } from "react-router-dom";
-import apiClient from "@/utils/apiClient";
-import { toast } from "sonner";
-import { useDispatch, useSelector } from "react-redux";
-import { setLoading, setUser } from "@/redux/authSlice";
-import { Loader2 } from "lucide-react";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { SignIn, SignUp, useSignIn, useSignUp, useClerk } from '@clerk/clerk-react';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { toast } from 'sonner';
 
-const Login = () => {
+const JobSeekerAuth = () => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   
-    const [input, setInput] = useState({
-    identifier: "", // Can be email or username
-    password: "",
-  });
-
-  const { loading, user } = useSelector((store) => store.auth);
+  const { signIn, setActive } = useSignIn();
+  const { signUp } = useSignUp();
+  const { openSignIn, openSignUp } = useClerk();
   const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const location = useLocation();
 
-  useEffect(() => {
-    if (location.state?.successMessage) {
-      toast.success(location.state.successMessage);
-      navigate(".", { replace: true, state: {} });
-    }
-  }, [location.state, navigate]);
-
-  const changeEventHandler = (e) => {
-    setInput({ ...input, [e.target.name]: e.target.value });
-  };
-
-  const HandleLogin = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Basic validation
-    if (!input.identifier || !input.password) {
-      toast.error("Please enter both email/username and password");
-      return;
-    }
-    
-    dispatch(setLoading(true));
-    try {
-      const res = await apiClient.post('/user/login', {
-        identifier: input.identifier, // Changed from email to identifier
-        password: input.password,
-      });
+    setIsLoading(true);
 
-      if (res.data.success) {
-        dispatch(setUser(res.data.user));
-        toast.success(res.data.message);
-        const redirectTo = location.state?.from?.pathname || '/';
-        navigate(redirectTo);
+    try {
+      if (isLogin) {
+        const result = await signIn.create({ identifier: email, password });
+        if (result.status === 'complete') {
+          await setActive({ session: result.createdSessionId });
+          navigate('/jobs');
+        }
+      } else {
+        const result = await signUp.create({
+          emailAddress: email,
+          password,
+          firstName: name.split(' ')[0],
+          lastName: name.split(' ')[1] || '',
+        });
+        if (result.status === 'complete') {
+          await result.prepareEmailAddressVerification({ strategy: 'email_code' });
+          navigate('/verify-email');
+        }
       }
     } catch (error) {
-      // Show specific error message from backend if available
-      const errorMessage = error.response?.data?.message || "Login failed. Please check your credentials.";
-      toast.error(errorMessage);
-      console.error("Login error:", error.response?.data || error.message);
+      toast.error(error.errors?.[0]?.message || 'An error occurred');
     } finally {
-      dispatch(setLoading(false));
+      setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (user) {
-      navigate("/");
-    }
-  }, [user, navigate]);
-
-  const handleGoogleLogin = async (credentialResponse) => {
-    try {
-      dispatch(setLoading(true));
-      
-      // Decode the JWT token from Google
-      const decoded = jwtDecode(credentialResponse.credential);
-      const { email, name, picture } = decoded;
-
-      // Send the credential to your backend for verification
-      const response = await apiClient.post('/auth/google', {
-        credential: credentialResponse.credential
-      });
-
-      if (response.data.success) {
-        dispatch(setUser(response.data.user));
-        toast.success("Successfully logged in with Google");
-        const redirectTo = location.state?.from?.pathname || '/';
-        navigate(redirectTo);
-      }
-    } catch (error) {
-      console.error('Google login error:', error);
-      toast.error(error.response?.data?.message || 'Google login failed');
-    } finally {
-      dispatch(setLoading(false));
-    }
+  const handleSocialAuth = (strategy) => {
+    const authMethod = isLogin ? openSignIn : openSignUp;
+    authMethod({ strategy: `oauth_${strategy}`, redirectUrl: '/sso-callback' });
   };
 
   return (
-    <GoogleOAuthProvider clientId="689062314057-6j3nbkadvp52ko4tsklj69me9j74oc18.apps.googleusercontent.com">
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        {/* Logo Container - Similar to LinkedIn */}
-        <div className="w-full max-w-md px-8 py-6">
-          <div className="flex flex-col items-center mb-8">
-            <div className="flex items-center justify-center mb-2">
-              <h1 className="text-3xl font-bold">
-                <span className="text-blue-500">Job</span>
-                <span className="text-gray-800 dark:text-white">Portal</span>
-              </h1>
-            </div>
-            <p className="text-xl font-light text-gray-600">Make the most of your professional life</p>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="w-full max-w-md space-y-8 bg-white p-8 rounded-lg shadow">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold">
+            {isLogin ? 'Sign in to your account' : 'Create an account'}
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {['google', 'github'].map((provider) => (
+            <Button
+              key={provider}
+              variant="outline"
+              onClick={() => handleSocialAuth(provider)}
+              className="flex items-center gap-2"
+            >
+              <span className="capitalize">{provider}</span>
+            </Button>
+          ))}
+        </div>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t" />
+          </div>
+          <div className="relative flex justify-center text-sm">
+            <span className="px-2 bg-white text-gray-500">Or continue with email</span>
           </div>
         </div>
-        
-        {/* Login Form Container */}
-        <div className="w-full max-w-md bg-white rounded-lg shadow-md p-8">
-          <h2 className="text-center text-2xl font-semibold text-gray-800 mb-6">Sign in</h2>
-          <form onSubmit={HandleLogin} className="space-y-4">
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {!isLogin && (
             <div>
-              <Label className="block text-sm font-medium text-gray-700 mb-1">Email or Username</Label>
               <Input
-                id="identifier"
-                name="identifier"
-                type="text"
-                placeholder="Enter your email or username"
-                value={input.identifier}
-                onChange={changeEventHandler}
-                required
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                label="Full Name"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required={!isLogin}
               />
             </div>
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <Label className="block text-sm font-medium text-gray-700">Password</Label>
-                <Link to="/forgot-password" className="text-sm font-medium text-blue-600 hover:underline">
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                type="password"
-                value={input.password}
-                name="password"
-                onChange={changeEventHandler}
-                placeholder="Enter your password"
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
+          )}
 
-            <Button 
-              type="submit" 
-              disabled={loading}
-              className="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
-                </>
-              ) : 'Sign in'}
-            </Button>
-          </form>
-
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">or</span>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <GoogleLogin
-              onSuccess={handleGoogleLogin}
-              onError={() => {
-                console.log('Login Failed');
-                toast.error('Google login failed. Please try again.');
-              }}
-              useOneTap
-              auto_select
-              theme="outline"
-              size="large"
-              text="continue_with"
-              shape="rectangular"
-              width="100%"
-              className="w-full"
+          <div>
+            <Input
+              label="Email address"
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
-
-            <p className="text-xs text-gray-500 text-center mt-4">
-              By clicking Continue with Google, you agree to our User Agreement and Privacy Policy.
-            </p>
           </div>
 
-          <div className="mt-8 text-center text-sm text-gray-600">
-            New to JobPortal?{' '}
-            <Link 
-              to="/signup" 
-              className="font-medium text-blue-600 hover:text-blue-500 hover:underline"
-            >
-              Join now
-            </Link>
+          <div>
+            <Input
+              label="Password"
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+            />
           </div>
+
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Processing...' : isLogin ? 'Sign in' : 'Create account'}
+          </Button>
+        </form>
+
+        <div className="text-center text-sm">
+          <button
+            type="button"
+            onClick={() => setIsLogin(!isLogin)}
+            className="font-medium text-indigo-600 hover:text-indigo-500"
+          >
+            {isLogin ? 'Need an account? Sign up' : 'Already have an account? Sign in'}
+          </button>
         </div>
       </div>
-    </GoogleOAuthProvider>
+    </div>
   );
 };
 
-export default Login;
+export default JobSeekerAuth;

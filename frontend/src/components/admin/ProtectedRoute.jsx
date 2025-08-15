@@ -12,15 +12,17 @@ const ProtectedRoute = ({ children }) => {
     useEffect(() => {
         // Only check auth if we're not already checking
         if (isCheckingAuth) {
-            // If we have a user in Redux, we're good to go
-            if (user && isAuthenticated) {
+            // Check for regular user or recruiter token
+            const recruiterToken = localStorage.getItem('recruiterToken');
+            const hasToken = (user && isAuthenticated) || recruiterToken;
+            
+            if (hasToken) {
                 setIsCheckingAuth(false);
                 return;
             }
             
-            // If we don't have a user but have a token, we might be in the middle of auth
-            const token = localStorage.getItem('token');
-            if (token) {
+            // If we don't have a token but have a user in Redux, we might be in the middle of auth
+            if (user) {
                 // Wait a moment for the auth state to update
                 const timer = setTimeout(() => {
                     setIsCheckingAuth(false);

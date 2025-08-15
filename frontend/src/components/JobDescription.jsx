@@ -1,267 +1,230 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { useParams, useNavigate } from 'react-router-dom';
 import { setSingleJob } from '@/redux/jobSlice';
 import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'sonner';
-import { Calendar, MapPin, Briefcase, DollarSign, Clock, Building2, FileText, UserCheck, CheckCircle } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
-import apiClient from '@/utils/apiClient';
+import { Briefcase, MapPin, Clock, DollarSign, ArrowLeft, Calendar } from 'lucide-react';
+import { JOB_API_END_POINT, APPLICATION_API_END_POINT } from '@/utils/constant';
+import axios from 'axios';
+import { useUser, useAuth } from '@clerk/clerk-react';
 
-const JobDescription = ({ job: jobProp, jobId, jobData, hideApplyButton = false, onApplySuccess, onBack }) => {
-    // Use jobData prop if available, otherwise use jobProp or get from Redux store
-    const job = jobData || jobProp || useSelector(store => store.job);
-    const { user } = useSelector(store => store.auth);
+const JobDescription = () => {
+    const { singleJob } = useSelector(store => store.job);
+    const [isApplied, setIsApplied] = useState(false);
+    const { id: jobId } = useParams();
     const dispatch = useDispatch();
     const navigate = useNavigate();
-    const params = useParams();
-    const jobIdFromParams = params.id;
-    
-    // Use the jobId prop if available, otherwise get it from params or job object
-    const finalJobId = jobId || jobIdFromParams || (job && job._id);
-    
-    const [isLoading, setIsLoading] = useState(false);
-    const [isApplied, setIsApplied] = useState(false);
-    const [isLoadingJob, setIsLoadingJob] = useState(false);
-    const [jobDetails, setJobDetails] = useState(job);
 
-    // Fetch job details if only jobId is provided
-    useEffect(() => {
-        const fetchJobDetails = async () => {
-            if (finalJobId && !jobDetails?._id) {
-                try {
-                    setIsLoadingJob(true);
-                    const response = await apiClient.get(`/job/get/${finalJobId}`);
-                    if (response.data?.success) {
-                        setJobDetails(response.data.job);
-                    }
-                } catch (error) {
-                    console.error('Error fetching job details:', error);
-                    toast.error('Failed to load job details');
-                } finally {
-                    setIsLoadingJob(false);
-                }
-            }
-        };
+    const { user, isSignedIn } = useUser();
+    const { getToken } = useAuth();
 
-        fetchJobDetails();
-    }, [finalJobId, jobDetails]);
-
-    // Check if user has already applied
-    useEffect(() => {
-        if (user && jobDetails?.applications) {
-            const hasApplied = jobDetails.applications.some(app => 
-                (app.applicant?._id === user._id) || 
-                (app.applicant === user._id) ||
-                (typeof app === 'string' && app === user._id)
-            );
-            setIsApplied(hasApplied);
-        }
-    }, [user, jobDetails]);
-
-    // Check if current user is the job poster
-    const isJobPoster = useMemo(() => {
-        if (!user || !jobDetails) return false;
-        const possiblePosterIds = [
-            jobDetails.postedBy?._id,
-            jobDetails.postedBy,
-            jobDetails.created_by,
-            jobDetails.createdBy?._id,
-            jobDetails.createdBy
-        ].filter(Boolean);
-        return possiblePosterIds.includes(user._id);
-    }, [user, jobDetails]);
-
-    const handleApply = async () => {
-        if (!user) {
-            navigate('/login', { state: { from: window.location.pathname } });
-            return;
-        }
-
-        if (isApplied || !finalJobId) {
-            console.error('Cannot apply: isApplied=', isApplied, 'jobId=', finalJobId);
-            return;
-        }
-
+    const applyJobHandler = async () => {
         try {
-            setIsLoading(true);
-            console.log('Applying to job ID:', finalJobId);
+            if (!isSignedIn) {
+                toast.info('Please sign in to apply for jobs');
+                navigate('/sign-in');
+                return;
+            }
+
+            const token = await getToken();
+            const res = await axios.post(
+                `${APPLICATION_API_END_POINT}/apply/${jobId}`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
             
-            const response = await apiClient.post(`/application/apply/${finalJobId}`);
-            
-            if (response.data.success) {
+            if (res.data.success) {
                 setIsApplied(true);
+                const updatedSingleJob = {
+                    ...singleJob, 
+                    applications: [...(singleJob?.applications || []), { applicant: user?.id }]
+                };
+                dispatch(setSingleJob(updatedSingleJob));
                 toast.success('Application submitted successfully!');
-                if (onApplySuccess) onApplySuccess();
-                
-                // Update the job in local state to include this application
-                setJobDetails(prev => ({
-                    ...prev,
-                    applications: [...(prev?.applications || []), { applicant: user._id }]
-                }));
             }
         } catch (error) {
             console.error('Error applying to job:', error);
-            toast.error(error.response?.data?.message || 'Failed to apply. Please try again.');
-        } finally {
-            setIsLoading(false);
+            toast.error(error.response?.data?.message || 'Failed to apply for the job');
         }
     };
 
-    // Don't show anything if no job data
-    if (isLoadingJob) {
+    useEffect(() => {
+        const fetchSingleJob = async () => {
+            try {
+                const token = await getToken();
+                const res = await axios.get(
+                    `${JOB_API_END_POINT}/${jobId}`,
+                    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+                );
+                if (res.data.success) {
+                    dispatch(setSingleJob(res.data.job));
+                    setIsApplied(
+                        res.data.job.applications?.some(app => 
+                            app.applicant === user?.id || 
+                            (typeof app === 'string' && app === user?.id)
+                        )
+                    );
+                }
+            } catch (error) {
+                console.error('Error fetching job:', error);
+                toast.error('Failed to load job details');
+            }
+        };
+        
+        if (jobId) {
+            fetchSingleJob();
+        }
+    }, [jobId, dispatch, user?.id, getToken]);
+
+    if (!singleJob) {
         return (
-            <div className="flex justify-center items-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="max-w-7xl mx-auto my-10 p-4">
+                <p>Loading job details...</p>
             </div>
         );
     }
-
-    if (!jobDetails) {
-        return (
-            <div className="text-center py-12">
-                <p className="text-gray-500">No job details available</p>
-                {onBack && (
-                    <Button 
-                        variant="outline" 
-                        className="mt-4"
-                        onClick={onBack}
-                    >
-                        Back to Jobs
-                    </Button>
-                )}
-            </div>
-        );
-    }
-
-    const { title, description, requirements, salary, location, jobType, experienceLevel, company, skills, createdAt } = jobDetails;
 
     return (
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-                <div className="flex justify-between items-start">
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900 mb-2">{title || 'No Title'}</h1>
-                        <div className="flex items-center text-gray-600 mb-4">
-                            <Building2 className="h-4 w-4 mr-1.5" />
-                            <span>{company?.name || 'Company Not Specified'}</span>
-                        </div>
-                    </div>
-                    {createdAt && (
-                        <div className="text-sm text-gray-500">
-                            <Calendar className="inline h-4 w-4 mr-1" />
-                            {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
-                        </div>
-                    )}
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                    <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-                        <MapPin className="h-4 w-4 mr-1" />
-                        {location || 'Not Specified'}
-                    </div>
-                    <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                        <Briefcase className="h-4 w-4 mr-1" />
-                        {jobType || 'Full-time'}
-                    </div>
-                    {salary && (
-                        <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
-                            <DollarSign className="h-4 w-4 mr-1" />
-                            {salary} {typeof salary === 'number' ? 'LPA' : ''}
-                        </div>
-                    )}
-                    {experienceLevel && (
-                        <div className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                            <UserCheck className="h-4 w-4 mr-1" />
-                            {experienceLevel}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            <div className="p-6">
-                <div className="mb-6">
-                    <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                        <FileText className="h-5 w-5 mr-2 text-blue-600" />
-                        Job Description
-                    </h2>
-                    <div className="prose max-w-none text-gray-700">
-                        {description || 'No job description provided.'}
-                    </div>
-                </div>
-
-                {Array.isArray(requirements) && requirements.length > 0 && (
-                    <div className="mb-6">
-                        <h3 className="text-md font-medium text-gray-900 mb-2">Requirements</h3>
-                        <ul className="list-disc pl-5 space-y-1">
-                            {requirements.map((req, index) => (
-                                <li key={index} className="text-gray-700">{req}</li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-
-                {Array.isArray(skills) && skills.length > 0 && (
-                    <div className="mb-6">
-                        <h3 className="text-md font-medium text-gray-900 mb-2">Skills Required</h3>
-                        <div className="flex flex-wrap gap-2">
-                            {skills.map((skill, index) => (
-                                <Badge key={index} variant="outline" className="text-sm py-1 px-3">
-                                    {skill}
+        <div className='max-w-7xl mx-auto my-10 px-4 sm:px-6 lg:px-8'>
+            <div className='bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden'>
+                {/* Job Header */}
+                <div className='bg-gradient-to-r from-blue-50 to-indigo-50 p-6 border-b border-gray-100'>
+                    <Button 
+                        onClick={() => navigate(-1)}
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-gray-600 hover:bg-white/50 -ml-2 mb-4"
+                    >
+                        <ArrowLeft className="mr-2 h-4 w-4" />
+                        Back to Jobs
+                    </Button>
+                    
+                    <div className='flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6'>
+                        <div>
+                            <h1 className='text-2xl font-bold text-gray-900'>{singleJob?.title}</h1>
+                            <div className='flex items-center gap-2 mt-2 text-gray-600 text-sm'>
+                                <Briefcase className='h-4 w-4' />
+                                <span>{singleJob?.position || 'N/A'} Position</span>
+                            </div>
+                            
+                            <div className='flex flex-wrap gap-2 mt-4'>
+                                <Badge variant="outline" className='bg-white/80 backdrop-blur-sm border-blue-200 text-blue-700'>
+                                    <MapPin className='h-4 w-4 mr-1' />
+                                    {singleJob?.location || 'Remote'}
                                 </Badge>
-                            ))}
+                                <Badge variant="outline" className='bg-white/80 backdrop-blur-sm border-purple-200 text-purple-700'>
+                                    <Clock className='h-4 w-4 mr-1' />
+                                    {singleJob?.jobType || 'Full-time'}
+                                </Badge>
+                                <Badge variant="outline" className='bg-white/80 backdrop-blur-sm border-green-200 text-green-700'>
+                                    <DollarSign className='h-4 w-4 mr-1' />
+                                    {singleJob?.salary ? `${singleJob.salary} LPA` : 'Negotiable'}
+                                </Badge>
+                            </div>
+                        </div>
+                        
+                        <div className='flex flex-col sm:flex-row lg:flex-col gap-3 w-full lg:w-auto'>
+                            <Button
+                                onClick={isApplied ? null : applyJobHandler}
+                                disabled={isApplied}
+                                className={`rounded-lg h-12 px-6 ${
+                                    isApplied 
+                                        ? 'bg-gray-100 text-gray-600 cursor-not-allowed' 
+                                        : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'
+                                }`}
+                            >
+                                {isApplied ? 'Applied' : 'Apply Now'}
+                            </Button>
                         </div>
                     </div>
-                )}
-
-                {!hideApplyButton && !isJobPoster && (
-                    <div className="mt-8 pt-6 border-t border-gray-200">
-                        {isApplied ? (
-                            <Button 
-                                disabled 
-                                className="w-full bg-green-100 text-green-800 hover:bg-green-100 h-12 text-base"
-                            >
-                                <CheckCircle className="h-5 w-5 mr-2" />
-                                Already Applied
-                            </Button>
-                        ) : (
-                            <Button 
-                                onClick={handleApply}
-                                disabled={isLoading}
-                                className={cn(
-                                    "w-full h-12 text-base",
-                                    isLoading ? "bg-blue-500/90" : "bg-blue-600 hover:bg-blue-700"
-                                )}
-                            >
-                                {isLoading ? (
-                                    <>
-                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Applying...
-                                    </>
-                                ) : (
-                                    "Apply Now"
-                                )}
-                            </Button>
-                        )}
+                </div>
+                
+                {/* Job Content */}
+                <div className='p-6'>
+                    <div className='grid grid-cols-1 lg:grid-cols-3 gap-8'>
+                        {/* Main Content */}
+                        <div className='lg:col-span-2 space-y-8'>
+                            {/* Job Overview */}
+                            <div className='space-y-4'>
+                                <h2 className='text-xl font-semibold text-gray-900'>Job Description</h2>
+                                <p className='text-gray-700 whitespace-pre-line'>{singleJob?.description}</p>
+                            </div>
+                            
+                            {/* Requirements */}
+                            {Array.isArray(singleJob?.requirements) && singleJob.requirements.length > 0 && (
+                                <div className='space-y-4'>
+                                    <h3 className='text-lg font-semibold text-gray-900'>Requirements</h3>
+                                    <ul className='space-y-3'>
+                                        {singleJob.requirements.map((req, index) => (
+                                            <li key={index} className='flex items-start'>
+                                                <span className='text-blue-500 mr-2 mt-1'>•</span>
+                                                <span className='text-gray-700'>{req}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* Sidebar */}
+                        <div className='space-y-6'>
+                            <div className='bg-gray-50 p-5 rounded-lg border border-gray-100'>
+                                <h3 className='font-medium text-gray-900 mb-4'>Job Overview</h3>
+                                <div className='space-y-4'>
+                                    <div className='flex items-start'>
+                                        <Calendar className='h-5 w-5 text-gray-400 mr-3 mt-0.5' />
+                                        <div>
+                                            <p className='text-sm text-gray-500'>Posted Date</p>
+                                            <p className='text-gray-900 font-medium'>
+                                                {singleJob?.createdAt 
+                                                    ? new Date(singleJob.createdAt).toLocaleDateString('en-US', {
+                                                        year: 'numeric',
+                                                        month: 'long',
+                                                        day: 'numeric'
+                                                    })
+                                                    : 'N/A'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className='flex items-start'>
+                                        <Clock className='h-5 w-5 text-gray-400 mr-3 mt-0.5' />
+                                        <div>
+                                            <p className='text-sm text-gray-500'>Job Type</p>
+                                            <p className='text-gray-900 font-medium'>{singleJob?.jobType || 'Full-time'}</p>
+                                        </div>
+                                    </div>
+                                    <div className='flex items-start'>
+                                        <MapPin className='h-5 w-5 text-gray-400 mr-3 mt-0.5' />
+                                        <div>
+                                            <p className='text-sm text-gray-500'>Location</p>
+                                            <p className='text-gray-900 font-medium'>{singleJob?.location || 'Remote'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div className='bg-blue-50 p-5 rounded-lg border border-blue-100'>
+                                <h3 className='font-medium text-blue-900 mb-3'>Ready to apply?</h3>
+                                <p className='text-sm text-blue-800 mb-4'>
+                                    Submit your application with just one click and take the next step in your career journey.
+                                </p>
+                                <Button 
+                                    onClick={isApplied ? null : applyJobHandler}
+                                    disabled={isApplied}
+                                    className={`w-full h-12 ${
+                                        isApplied 
+                                            ? 'bg-gray-100 text-gray-600 cursor-not-allowed' 
+                                            : 'bg-blue-600 hover:bg-blue-700'
+                                    }`}
+                                >
+                                    {isApplied ? 'Application Submitted' : 'Apply for this position'}
+                                </Button>
+                            </div>
+                        </div>
                     </div>
-                )}
-
-                {onBack && (
-                    <div className="mt-4">
-                        <Button 
-                            variant="outline" 
-                            onClick={onBack}
-                            className="w-full"
-                        >
-                            Back to Jobs
-                        </Button>
-                    </div>
-                )}
+                </div>
             </div>
         </div>
     );

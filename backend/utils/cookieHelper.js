@@ -5,8 +5,7 @@
 const getCookieOptions = () => {
     const isProduction = process.env.NODE_ENV === 'production';
     
-    // In development, don't set domain to allow localhost with any port
-    // In production, use the COOKIE_DOMAIN from environment variables
+    
     const domain = isProduction ? process.env.COOKIE_DOMAIN : undefined;
     
     return {

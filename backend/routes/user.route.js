@@ -1,82 +1,24 @@
-import express from "express";
-import { getUserById, googleLogin, login, logout, register, updateProfile } from "../controllers/user.controller.js";
-import isAuthenticated from "../middlewares/isAuthenticated.js";
-import { multiUpload, singleUpload } from "../middlewares/multer.js";
-import { forgotPassword ,toggleFollow,getNotifications,markAllNotificationsAsRead } from "../controllers/user.controller.js";
-import { sendOtpForPhoneVerification ,changePassword,updatePhoneNumber,verifyOtpforgotpassword } from "../controllers/user.controller.js";
-import { getGitHubClientId, handleGitHubCallback, getUserProfile, searchUsers, getMyProfile, getAllUsers } from "../controllers/user.controller.js";
+import express from 'express';
+import { 
+    getUserData, 
+    getAppliedJobs,
+    applyForJob,
+    getUserApplications,
+    applyJob
+} from '../controllers/user.controller.js';
+import isAuthenticated from '../middlewares/isAuthenticated.js';
 
- 
 const router = express.Router();
-router.post("/google-login", googleLogin);
-router.route("/register").post(singleUpload, register);
-router.route("/login").post(login);
-router.route("/logout").get(logout);
 
-router.post("/forgot-password", forgotPassword)
-router.post("/forgotpassword-verification", verifyOtpforgotpassword); 
+// Public routes
+router.get('/:id', getUserData);
 
-// Handle profile update with file uploads
-router.post(
-  "/profile/update",
-  isAuthenticated,
-  multiUpload, 
-  (req, res, next) => {
-    console.log('📝 PROFILE UPDATE - Request received:', {
-      method: req.method,
-      url: req.originalUrl,
-      body: req.body,
-      files: req.files,
-      file: req.file,
-      headers: req.headers
-    });
-    next();
-  },
-  updateProfile
-);
-router.put(
-  "/profile/update",
-  isAuthenticated,
-  multiUpload, 
-  (req, res, next) => {
-    console.log('📝 PROFILE UPDATE (PUT) - Request received:', {
-      method: req.method,
-      url: req.originalUrl,
-      body: req.body,
-      files: req.files,
-      file: req.file,
-      headers: req.headers
-    });
-    next();
-  },
-  updateProfile
-);
+// Protected routes (require authentication)
+router.use(isAuthenticated);
 
-
-router.put("/change-password", isAuthenticated, changePassword);
-
-router.post("/send-otp", isAuthenticated, sendOtpForPhoneVerification);
-router.put("/update-phone", isAuthenticated, updatePhoneNumber);
-router.get("/search/:username", isAuthenticated, searchUsers);
-router.get("/profile/:username", isAuthenticated, getUserProfile);
-router.get("/all", isAuthenticated, getAllUsers);
-
-router.post("/:id/follow", isAuthenticated, toggleFollow);
-// 🔥 Add this at the bottom (after other `/:param` routes)
-
-
-router.get("/me", isAuthenticated, getMyProfile);
-  
-router.get("/notifications", isAuthenticated, getNotifications);
-router.put("/notifications/mark-all-read", isAuthenticated, markAllNotificationsAsRead);
-// Get user by ID - using /by-id/ to avoid conflict with other routes
-router.get("/by-id/:id", getUserById); 
-router.get("/github/client-id", getGitHubClientId);
-
-router.get("/github/callback", handleGitHubCallback);
-
-
-
-
+// Job application routes
+router.post('/jobs/:jobId/apply', applyForJob);
+router.get('/me/applications', getAppliedJobs);
+router.get('/me/applicants', getUserApplications);
 
 export default router;

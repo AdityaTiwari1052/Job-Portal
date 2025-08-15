@@ -40,6 +40,8 @@ const authSlice = createSlice({
       state.user = null;
       state.isAuthenticated = false;
       state.notifications = [];
+      // Clear recruiter token from localStorage
+      localStorage.removeItem('recruiterToken');
     },
   },
 });

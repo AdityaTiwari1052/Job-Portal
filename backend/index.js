@@ -1,27 +1,23 @@
-import express from "express";
-import cookieParser from "cookie-parser";
-import cors from "cors";
 import dotenv from "dotenv";
-import connectDB from "./utils/db.js";
-import userRoute from "./routes/user.route.js";
-import companyRoute from "./routes/company.route.js";
-import jobRoute from "./routes/job.route.js";
-import postRoutes from "./routes/post.route.js";
-import applicationRoute from "./routes/application.route.js";
-import testEndpoint from "./test-endpoint.js";
 import path from "path";
 import { fileURLToPath } from 'url';
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({
-  path: path.resolve(__dirname, '../.env')
-});
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
+import express from "express";
+import cookieParser from "cookie-parser";
+import cors from "cors";
+import userRouter from "./routes/user.route.js"
+import connectDB from "./utils/db.js";
+import jobRoute from "./routes/job.route.js";
+import recruiterRoute from "./routes/recruiter.route.js";
+import webhookRoutes from './routes/webhook.route.js';
+import testEndpoint from "./test-endpoint.js";
 
 const app = express();
-
 
 // Body parsers
 app.use(express.json({ verify: (req, res, buf) => {
@@ -90,10 +86,6 @@ app.use((req, res, next) => {
     return next();
   }
 
-  console.log('\n=== INCOMING REQUEST ===');
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('Query:', JSON.stringify(req.query, null, 2));
   
   // Make a copy of the body for logging
   const bodyCopy = { ...req.body };
@@ -165,16 +157,10 @@ app.use((req, res, next) => {
 app.options('*', cors(corsOptions)); // Enable pre-flight for all routes
 
 const PORT = process.env.PORT || 8000;
-
-
-
-
-app.use("/api/v1/user", userRoute);
-app.use("/api/v1/posts", postRoutes); 
-app.use("/api/v1/company", companyRoute);
-app.use("/api/v1/job", jobRoute);
-app.use("/api/v1/application", applicationRoute);
-
+app.use('/api/v1/user', userRouter);
+app.use('/api/v1/webhooks', webhookRoutes);
+app.use("/api/v1/jobs",jobRoute);
+app.use("/api/v1/recruiter", recruiterRoute);
 
 // Test logging endpoint
 app.use('/test', testEndpoint);

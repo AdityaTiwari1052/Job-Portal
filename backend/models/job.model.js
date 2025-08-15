@@ -12,13 +12,18 @@ const jobSchema = new mongoose.Schema({
     requirements: [{
         type: String
     }],
-    salary: {
+    salaryMin: {
         type: Number,
         required: true
     },
-    experienceLevel:{
-        type:String,
-        required:true,
+    salaryMax: {
+        type: Number,
+        required: true
+    },
+    experienceLevel: {
+        type: String,
+        required: true,
+        enum: ['Entry Level', 'Mid Level', 'Senior', 'Lead', 'Manager', 'Executive']
     },
     location: {
         type: String,
@@ -26,27 +31,57 @@ const jobSchema = new mongoose.Schema({
     },
     jobType: {
         type: String,
-        required: true
+        required: true,
+        enum: ['Full-time', 'Part-time', 'Contract', 'Internship', 'Temporary']
     },
-    position: {
-        type: Number,
+    skills: [{
+        type: String,
         required: true
-    },
+    }],
     company: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Company',
+        ref: 'Recruiter',
         required: true
+    },
+    companyName: {
+        type: String,
+        required: true
+    },
+    companyLogo: {
+        type: String,
+        default: ''
     },
     created_by: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
     },
-    applications: [
-        {
-            type: mongoose.Schema.Types.ObjectId,
-            ref: 'Application',
-        }
-    ]
-},{timestamps:true});
-export const Job = mongoose.model("Job", jobSchema);
+    applications: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Application',
+    }],
+    isActive: {
+        type: Boolean,
+        default: true
+    },
+    expiresAt: {
+        type: Date,
+        default: () => new Date(+new Date() + 30*24*60*60*1000) // 30 days from now
+    }
+}, {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// Add a text index for search functionality
+jobSchema.index({
+    title: 'text',
+    description: 'text',
+    companyName: 'text',
+    location: 'text',
+    skills: 'text'
+});
+
+const Job = mongoose.model("Job", jobSchema);
+export default Job;

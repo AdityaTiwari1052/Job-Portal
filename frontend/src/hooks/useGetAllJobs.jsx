@@ -1,55 +1,59 @@
-import { setAllJobs } from '@/redux/jobSlice';
-import apiClient from '@/utils/apiClient';
-import { useEffect } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
+import { setAllJobs, setLoading, setError } from '@/redux/jobSlice'
+import { JOB_API_END_POINT } from '@/utils/constant'
+import axios from 'axios'
+import { useEffect } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
 
 const useGetAllJobs = () => {
     const dispatch = useDispatch();
     const { searchedQuery } = useSelector(store => store.job);
-    const { user } = useSelector(store => store.auth);
     
     useEffect(() => {
         const fetchAllJobs = async () => {
+            console.log('Starting to fetch jobs...');
+            dispatch(setLoading(true));
+            
             try {
-                console.log('=== FETCHING JOBS ===');
-                console.log('User authenticated:', !!user);
-                console.log('Search query:', searchedQuery);
+                const url = `${JOB_API_END_POINT}/all${searchedQuery ? `?keyword=${encodeURIComponent(searchedQuery)}` : ''}`;
+                console.log('Making request to:', url);
                 
-                if (!user) {
-                    console.log('No user authenticated, skipping job fetch');
-                    return;
-                }
+                const res = await axios.get(url, {
+                    withCredentials: true,
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
                 
-                const res = await apiClient.get(`/job/get?keyword=${searchedQuery || ''}`);
-                console.log('Jobs API response:', res.data);
+                console.log('Response status:', res.status);
+                console.log('Response data:', res.data);
                 
-                if (res.data.success) {
-                    dispatch(setAllJobs(res.data.jobs));
-                    console.log('Jobs fetched successfully:', res.data.jobs.length, 'jobs');
+                if (res.data && res.data.success) {
+                    console.log('Successfully fetched jobs:', res.data.jobs);
+                    dispatch(setAllJobs(Array.isArray(res.data.jobs) ? res.data.jobs : []));
                 } else {
-                    console.warn('Job fetch unsuccessful:', res.data.message);
+                    console.error('Unexpected response format:', res.data);
+                    dispatch(setError('Failed to fetch jobs: Invalid response format'));
                 }
             } catch (error) {
-                console.error('Error fetching jobs:', {
+                console.error('Error details:', {
                     message: error.message,
                     response: error.response?.data,
                     status: error.response?.status,
-                    statusText: error.response?.statusText
+                    config: {
+                        url: error.config?.url,
+                        method: error.config?.method,
+                        headers: error.config?.headers,
+                    }
                 });
-                
-                // If it's a 401 error, the user is not authenticated
-                if (error.response?.status === 401) {
-                    console.log('Authentication required for job fetching');
-                } else if (error.response?.status === 403) {
-                    console.log('Access forbidden for job fetching');
-                } else {
-                    console.log('Other error during job fetching:', error.message);
-                }
+                dispatch(setError(`Error: ${error.response?.data?.message || 'Failed to fetch jobs. Please try again later.'}`));
+            } finally {
+                dispatch(setLoading(false));
             }
         };
-        
-        fetchAllJobs();
-    }, [searchedQuery, dispatch, user]);
-}
 
-export default useGetAllJobs
+        fetchAllJobs();
+    }, [dispatch, searchedQuery]);
+};
+
+export default useGetAllJobs;

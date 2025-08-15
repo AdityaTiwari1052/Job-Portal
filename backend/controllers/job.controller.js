@@ -1,151 +1,148 @@
-import { Job } from "../models/job.model.js";
+import Job from "../models/job.model.js";
+import Recruiter from "../models/recruiter.model.js"; // Added Recruiter model import
+import mongoose from 'mongoose'; // Added mongoose import
 
-import mongoose from 'mongoose';
-
-// admin post krega job
-export const postJob = async (req, res) => {
-    try {
-        const { title, description, requirements, salary, location, jobType, experienceLevel, position, companyId } = req.body;
-        const userId = req.user._id;
-
-        // Log the incoming request body for debugging
-        console.log('Request body:', req.body);
-
-        if (!title || !description || !requirements || !salary || !location || !jobType || !experienceLevel || !position || !companyId) {
-            return res.status(400).json({
-                message: "All fields are required, including company selection.",
-                success: false,
-                missingFields: {
-                    title: !title,
-                    description: !description,
-                    requirements: !requirements,
-                    salary: !salary,
-                    location: !location,
-                    jobType: !jobType,
-                    experienceLevel: !experienceLevel,
-                    position: !position,
-                    companyId: !companyId
-                }
-            });
-        }
-
-        // Validate companyId is a valid MongoDB ObjectId
-        if (!mongoose.Types.ObjectId.isValid(companyId)) {
-            return res.status(400).json({
-                message: "Invalid company ID format.",
-                success: false,
-                companyId: companyId
-            });
-        }
-
-        const job = await Job.create({
-            title,
-            description,
-            requirements: Array.isArray(requirements) ? requirements : requirements.split(","),
-            salary: Number(salary),
-            location,
-            jobType,
-            experienceLevel,
-            position: Number(position),
-            company: companyId,
-            created_by: userId
-        });
-
-        // Populate the company data in the response
-        const populatedJob = await Job.findById(job._id).populate('company', 'name');
-
-        return res.status(201).json({
-            message: "New job created successfully.",
-            job: populatedJob,
-            success: true
-        });
-    } catch (error) {
-        console.error('Error in postJob:', error);
-        return res.status(500).json({
-            message: error.message || "Error creating job",
-            success: false,
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-}
-// student k liye
 export const getAllJobs = async (req, res) => {
-    try {
-        const keyword = req.query.keyword || "";
-        const query = {
-            $or: [
-                { title: { $regex: keyword, $options: "i" } },
-                { description: { $regex: keyword, $options: "i" } },
-            ]
-        };
-        const jobs = await Job.find(query)
-            .populate({ path: "company", select: "name logo" })
-            .select("title description requirements salary experienceLevel location jobType position company created_by createdAt")
-            .sort({ createdAt: -1 });
-        if (!jobs) {
-            return res.status(404).json({
-                message: "Jobs not found.",
-                success: false
-            })
-        };
-        return res.status(200).json({
-            jobs,
-            success: true
-        })
-    } catch (error) {
-        console.log(error);
+  try {
+    const keyword = req.query.keyword || "";
+    const query = {
+      $or: [
+        { title: { $regex: keyword, $options: "i" } },
+        { description: { $regex: keyword, $options: "i" } },
+        { companyName: { $regex: keyword, $options: "i" } },
+        { skills: { $in: [new RegExp(keyword, 'i')] } }
+      ]
+    };
+
+    const jobs = await Job.find(query).sort({ createdAt: -1 });
+    
+    return res.status(200).json({
+      success: true,
+      jobs
+    });
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch jobs'
+    });
+  }
+};
+
+export const postJob = async (req, res) => {
+  try {
+    // First, get the recruiter's details to include company info
+    const recruiter = await Recruiter.findById(req.id);
+    if (!recruiter) {
+      return res.status(404).json({
+        success: false,
+        message: 'Recruiter not found'
+      });
     }
-}
-// student
+
+    // Parse requirements string into array if it's a string
+    const requirements = Array.isArray(req.body.requirements) 
+      ? req.body.requirements 
+      : req.body.requirements?.split(',').map(r => r.trim()) || [];
+
+    // Parse skills string into array if it's a string
+    const skills = Array.isArray(req.body.skills) 
+      ? req.body.skills 
+      : req.body.skills?.split(',').map(s => s.trim()) || [];
+
+    // Convert salary to numbers and set min/max
+    const salary = parseInt(req.body.salary) || 0;
+    const salaryMin = salary - (salary * 0.2); // 20% below the provided salary
+    const salaryMax = salary + (salary * 0.2); // 20% above the provided salary
+
+    const jobData = {
+      ...req.body,
+      requirements,
+      skills,
+      salaryMin: Math.max(0, Math.floor(salaryMin)), // Ensure not negative
+      salaryMax: Math.max(0, Math.ceil(salaryMax)),
+      created_by: req.id,
+      company: req.id,
+      companyName: recruiter.companyName,
+      companyLogo: recruiter.companyLogo || ''
+    };
+
+    const job = new Job(jobData);
+    await job.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Job posted successfully',
+      job
+    });
+  } catch (error) {
+    console.error('Error posting job:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to post job',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
 export const getJobById = async (req, res) => {
-    try {
-        const jobId = req.params.id;
-        const job = await Job.findById(jobId).populate({
-            path:"applications"
-        });
-        if (!job) {
-            return res.status(404).json({
-                message: "Jobs not found.",
-                success: false
-            })
-        };
-       
-        return res.status(200).json({ job, success: true });
-    } catch (error) {
-        console.log(error);
+  try {
+    // Check if the ID is a valid MongoDB ObjectId
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid job ID format'
+      });
     }
-}
-// admin kitne job create kra hai abhi tk
-export const getAdminJobs = async (req, res) => {
-    try {
-        const adminId = req.user._id;
-        const jobs = await Job.find({ created_by: adminId })
-            .populate({
-                path: 'company'
-            })
-            .populate({
-                path: 'applications',
-                populate: {
-                    path: 'applicant',
-                    model: 'User',
-                    select: 'profile.fullname profile.email'
-                }
-            })
-            .sort({ createdAt: -1 });
 
-        if (!jobs || jobs.length === 0) {
-            return res.status(404).json({
-                message: "You have not posted any jobs yet.",
-                success: false
-            })
-        };
-
-        return res.status(200).json({
-            jobs,
-            success: true
-        })
-    } catch (error) {
-        console.log(error);
-        return res.status(500).json({ message: "Server error." });
+    const job = await Job.findById(req.params.id);
+    
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found'
+      });
     }
-}
+
+    return res.status(200).json({
+      success: true,
+      job
+    });
+  } catch (error) {
+    console.error('Error fetching job:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch job',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};
+
+export const getJobsByRecruiter = async (req, res) => {
+  try {
+    console.log('Fetching jobs for recruiter ID:', req.id); 
+    const jobs = await Job.find({ 
+      created_by: req.id 
+    }).sort({ createdAt: -1 });
+
+    if (!jobs || jobs.length === 0) {
+      return res.status(404).json({
+        message: "No jobs found for this recruiter.",
+        success: false,
+        jobs: []
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      jobs
+    });
+  } catch (error) {
+    console.error('Error fetching recruiter jobs:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch jobs',
+      error: error.message
+    });
+  }
+};

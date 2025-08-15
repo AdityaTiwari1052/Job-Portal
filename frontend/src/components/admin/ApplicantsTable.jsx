@@ -1,87 +1,237 @@
-import React from 'react'
-import { useNavigate } from 'react-router-dom';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '../ui/table'
-import { useSelector, useDispatch } from 'react-redux';
+import React, { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { createSelector } from '@reduxjs/toolkit';
+import { Button } from '../ui/button';
+import { Check, X, Download, User, Mail, Phone, Calendar as CalendarIcon, Briefcase, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import apiClient from '@/utils/apiClient';
+import { setAllApplicants } from '../../redux/applicationSlice';
 import axios from 'axios';
-import { CheckCircle2, XCircle } from 'lucide-react';
-import {Avatar} from "../../components/ui/avatar";
-import { setAllApplicants } from '@/redux/applicationSlice';
+
+const selectApplicants = createSelector(
+  (state) => state.application.applicants,
+  (applicants) => (Array.isArray(applicants) ? applicants : [])
+);
 
 const ApplicantsTable = () => {
-  const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { applicants } = useSelector(store => store.application);
+  const applicants = useSelector(selectApplicants);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const fetchAllApplicants = async () => {
+  const fetchApplicants = async () => {
     try {
-      const res = await apiClient.get(`/application/${applicants?._id}/applicants`, { withCredentials: true });
-      dispatch(setAllApplicants(res.data.job));
-    } catch (error) {
-      console.log(error);
+        setIsLoading(true);
+        setError(null);
+        
+        const token = localStorage.getItem('recruiterToken');
+        console.log('Auth Token:', token ? 'Token exists' : 'No token found');
+        
+        if (!token) {
+            throw new Error('No authentication token found. Please log in again.');
+        }
+
+        console.log('Fetching applicants...');
+        const response = await fetch('http://localhost:8000/api/v1/user/me/applicants', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            credentials: 'include'
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to fetch applicants');
+        }
+
+        if (data?.success) {
+            const formattedApplicants = data.data?.applications || [];
+            console.log('Formatted applicants:', formattedApplicants);
+            dispatch(setAllApplicants(formattedApplicants));
+        } else {
+            throw new Error(data?.message || 'Failed to fetch applicants');
+        }
+    } catch (err) {
+        console.error('Error details:', {
+            message: err.message,
+            stack: err.stack
+        });
+
+        let errorMessage = 'Failed to load applicants. ';
+        errorMessage += err.message || 'Please try again later.';
+        
+        setError(errorMessage);
+        toast.error(errorMessage);
+    } finally {
+        setIsLoading(false);
     }
+};
+  useEffect(() => {
+    fetchApplicants();
+  }, [dispatch]);
+
+  const handleStatusUpdate = async (applicationId, status) => {
+    try {
+      const response = await axios.patch(`http://localhost:8000/api/v1/applications/${applicationId}/status`, { status }, {
+        withCredentials: true,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.data.success) {
+        toast.success(`Application ${status} successfully`);
+        fetchApplicants(); // Refresh the list
+      }
+    } catch (err) {
+      console.error('Error updating status:', err);
+      toast.error(err.response?.data?.message || 'Failed to update status');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
   }
 
-  const statusHandler = async (status, id) => {
-    try {
-      const res = await apiClient.post(`/application/update-status/${id}`, { status });
-      if (res.data.success) {
-        toast.success(res.data.message);
-        fetchAllApplicants();
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Something went wrong");
-    }
+  if (error) {
+    return (
+      <div className="p-4 text-center text-red-500">
+        <p>{error}</p>
+        <Button 
+          variant="outline" 
+          onClick={fetchApplicants}
+          className="mt-2"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (applicants.length === 0) {
+    return (
+      <div className="p-4 text-center text-gray-500">
+        No applicants found
+      </div>
+    );
   }
 
   return (
-    <div>
-      <Table>
-        <TableCaption>A list of your recent applied users</TableCaption>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Profile</TableHead>
-            <TableHead>Full Name</TableHead>
-            <TableHead>Date</TableHead>
-            <TableHead>Resume</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {
-            applicants && applicants?.applications?.map((item) => (
-              <TableRow key={item._id}>
-                <TableCell>
-                  <div onClick={() => navigate(`/profile/id/${item.applicant._id}`)} className="cursor-pointer flex items-center gap-2">
-                    {
-                      item?.applicant?.profile?.profilePhoto
-                        ? <img src={item.applicant.profile.profilePhoto} alt="Profile" className="w-10 h-10 rounded-full object-cover" />
-                        : <Avatar name={item?.applicant?.fullname} size="40" round={true} />
-                    }
-                    <span className="text-blue-600 underline text-sm">View Profile</span>
+    <div className="overflow-x-auto">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Applicant
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Job Title
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Status
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Applied On
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {applicants.map((application) => (
+            <tr key={application._id}>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 h-10 w-10">
+                    {application.applicant?.profilePicture ? (
+                      <img 
+                        className="h-10 w-10 rounded-full" 
+                        src={application.applicant.profilePicture} 
+                        alt={application.applicant.name} 
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                        <User className="h-5 w-5 text-gray-400" />
+                      </div>
+                    )}
                   </div>
-                </TableCell>
-                <TableCell className="font-medium">{item?.applicant?.fullname}</TableCell>
-                <TableCell>{item?.applicant.createdAt.split("T")[0]}</TableCell>
-                <TableCell>
-                  {
-                    item.applicant?.profile?.resume
-                      ? <a className="text-blue-600 cursor-pointer text-sm" href={item?.applicant?.profile?.resume} target="_blank" rel="noopener noreferrer">{item?.applicant?.profile?.resumeOriginalName}</a>
-                      : <span>NA</span>
-                  }
-                </TableCell>
-                <TableCell className="flex gap-4">
-                  <CheckCircle2 className="text-green-600 cursor-pointer" onClick={() => statusHandler("Accepted", item?._id)} />
-                  <XCircle className="text-red-600 cursor-pointer" onClick={() => statusHandler("Rejected", item?._id)} />
-                </TableCell>
-              </TableRow>
-            ))
-          }
-        </TableBody>
-      </Table>
+                  <div className="ml-4">
+                    <div className="text-sm font-medium text-gray-900">
+                      {application.applicant?.name || 'N/A'}
+                    </div>
+                    <div className="text-sm text-gray-500 flex items-center">
+                      <Mail className="h-3.5 w-3.5 mr-1" />
+                      {application.applicant?.email || 'N/A'}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="text-sm text-gray-900">
+                  {application.job?.title || 'N/A'}
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                  ${application.status === 'accepted' ? 'bg-green-100 text-green-800' : 
+                    application.status === 'rejected' ? 'bg-red-100 text-red-800' : 
+                    'bg-yellow-100 text-yellow-800'}`}>
+                  {application.status || 'pending'}
+                </span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {new Date(application.appliedAt).toLocaleDateString()}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <div className="flex space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleStatusUpdate(application._id, 'accepted')}
+                    disabled={application.status === 'accepted'}
+                  >
+                    <Check className="h-4 w-4 mr-1" /> Accept
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleStatusUpdate(application._id, 'rejected')}
+                    disabled={application.status === 'rejected'}
+                  >
+                    <X className="h-4 w-4 mr-1" /> Reject
+                  </Button>
+                  {application.resume && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      asChild
+                    >
+                      <a 
+                        href={application.resume} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="flex items-center"
+                      >
+                        <Download className="h-4 w-4 mr-1" /> Resume
+                      </a>
+                    </Button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
-  )
-}
+  );
+};
 
 export default ApplicantsTable;

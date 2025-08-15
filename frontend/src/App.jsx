@@ -1,186 +1,209 @@
 import { useEffect, useState } from 'react';
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
-import { ThemeProvider } from './components/ui/theme-provider';
-import { useDispatch } from 'react-redux';
-import { setUser } from './redux/authSlice';
-import axios from 'axios';
-import apiClient from './utils/apiClient';
-import { toast } from 'sonner';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-
-// Import components
-import Layout from "./Layout";
-import Navbar from "./components/shared/Navbar";
-import Login from "./components/auth/Login";
-import Signup from "./components/auth/Signup";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { SignedIn, SignedOut, RedirectToSignIn, useAuth } from '@clerk/clerk-react';
+import { Toaster } from 'react-hot-toast';
+import Navbar from './components/shared/Navbar';
 import Home from "./components/Home";
-import JobsPage from "./components/JobsPage";
 import JobDescription from "./components/JobDescription";
-import Companies from "./components/admin/Companies";
-import CompanySetup from "./components/admin/CompanySetup";
-import ProtectedRoute from "./components/admin/ProtectedRoute";
-import VerifyforgotPassword from "./components/auth/Verifyforgotpassword";
-import ForgotPassword from "./components/auth/ForgotPassword";
+import Dashboard from "./components/Dashboard";
+import AppliedJobTable from "./components/AppliedJobTable";
+import { ModalProvider } from './context/ModalContext';
+import { ThemeProvider } from './components/ui/theme-provider';
 
-import AccountSettings from "./components/AccountSettings";
-import EditProfile from "./components/EditProfile";
-import Network from "./components/Network";
-import Applicants from "./components/admin/Applicants";
-import DebugInfo from "./components/DebugInfo";
-import UserProfile from "./components/UserProfile";  
-
-// Create router configuration
-const router = createBrowserRouter([
-  { path: "/", element: <Navigate to="/home" /> },
-  {
-    path: "/",
-    element: <Layout />,
-    children: [
-      { path: "home", element: <Home /> },
-      { 
-        path: "jobs", 
-        element: (
-          <ProtectedRoute>
-            <JobsPage />
-          </ProtectedRoute>
-        ) 
-      },
-      { 
-        path: "description/:id", 
-        element: <JobDescription /> 
-      },
-      { 
-        path: "settings", 
-        element: (
-          <ProtectedRoute>
-            <AccountSettings />
-          </ProtectedRoute>
-        ) 
-      },
-      { path: "account-settings", element: <AccountSettings /> },
-      {
-        path: "profile/id/:id/edit",
-        element: (
-          <ProtectedRoute>
-            <EditProfile />
-          </ProtectedRoute>
-        )
-      },
-      {
-        path: "admin/companies",
-        element: (
-          <ProtectedRoute>
-            <Companies />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "admin/companies/:id",
-        element: (
-          <ProtectedRoute>
-            <CompanySetup />
-          </ProtectedRoute>
-        ),
-      },
-      {
-        path: "admin/jobs/applicants/:jobId",
-        element: (
-          <ProtectedRoute>
-            <div className="container mx-auto p-4">
-              <h1 className="text-2xl font-bold mb-4">Job Applicants</h1>
-              <Applicants />
-            </div>
-          </ProtectedRoute>
-        ),
-      },
-      
-      {
-        path: "network",
-        element: (
-          <ProtectedRoute>
-            <Network />
-          </ProtectedRoute>
-        ),
-      },
-    ],
-  },
-  { path: "/login", element: <Login /> },
-  { path: "/signup", element: <Signup /> },
-  { path: "/forgot-password", element: <ForgotPassword /> },
-  { path: "/verify-forgot-password", element: <VerifyforgotPassword /> },
-  { path: "/user/:username", element: <UserProfile /> },
-]);
-
-// Main App component wrapped with AuthProvider
-function AppWrapper() {
+// Layout for routes that should have Navbar
+const NavbarLayout = () => {
   return (
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <div className="min-h-screen bg-background">
+      <Navbar />
+      <main>
+        <Outlet />
+      </main>
+    </div>
   );
-}
+};
 
-// App component with auth check
-function App() {
-  const dispatch = useDispatch();
-  const [isAuthChecked, setIsAuthChecked] = useState(false);
-  const { checkAuth } = useAuth();
+// Public route wrapper (no auth logic now)
+const PublicRoute = ({ children }) => {
+  const [isRecruiter, setIsRecruiter] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on app load
   useEffect(() => {
-    const verifyAuth = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (token) {
-          try {
-            // Try to refresh the token
-            const refreshResponse = await apiClient.post(
-              '/user/refresh-token',
-              {},
-              {
-                withCredentials: true,
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-              }
-            );
+    const checkRecruiterAuth = async () => {
+      const token = localStorage.getItem('recruiterToken');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
 
-            if (refreshResponse.data.success) {
-              localStorage.setItem('token', refreshResponse.data.token);
-              
-              const storedUser = localStorage.getItem('user');
-              if (storedUser) {
-                dispatch(setUser(JSON.parse(storedUser)));
-              }
-            }
-          } catch (error) {
-            console.error('Token refresh failed:', error);
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/recruiter/me', {
+          method: 'GET',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+        
+        const responseData = await response.json();
+        
+        if (response.ok && responseData.status === 'success' && responseData.data) {
+          setIsRecruiter(true);
+          // Redirect to dashboard if on home page
+          if (window.location.pathname === '/') {
+            window.location.href = '/dashboard';
           }
+        } else {
+          localStorage.removeItem('recruiterToken');
+          localStorage.removeItem('recruiterData');
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        console.error('Error checking recruiter auth:', error);
+        localStorage.removeItem('recruiterToken');
+        localStorage.removeItem('recruiterData');
       } finally {
-        setIsAuthChecked(true);
+        setIsLoading(false);
       }
     };
 
-    verifyAuth();
-  }, [dispatch]);
+    checkRecruiterAuth();
+  }, []);
 
-  if (!isAuthChecked) {
+  if (isLoading) {
     return <div>Loading...</div>;
   }
 
+  if (isRecruiter) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Protected route for recruiter dashboard
+const RecruiterRoute = ({ children }) => {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('recruiterToken');
+      if (!token) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const response = await fetch('http://localhost:8000/api/v1/recruiter/me', {
+          method: 'GET',
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include'
+        });
+        
+        const responseData = await response.json();
+        
+        if (response.ok && responseData.status === 'success' && responseData.data) {
+          localStorage.setItem('recruiterData', JSON.stringify(responseData.data.recruiter));
+          setIsAuthenticated(true);
+        } else {
+          throw new Error('Invalid token');
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        localStorage.removeItem('recruiterToken');
+        localStorage.removeItem('recruiterData');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
+function App() {
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
-      <DebugInfo />
+      <ModalProvider>
+        <Router>
+          <Routes>
+            {/* Public routes with Navbar */}
+            <Route path="/" element={
+              <div className="min-h-screen bg-background">
+                <Navbar />
+                <main>
+                  <Outlet />
+                </main>
+              </div>
+            }>
+              <Route index element={
+                <PublicRoute>
+                  <Home />
+                </PublicRoute>
+              } />
+              <Route path="description/:id" element={<JobDescription />} />
+              
+              <Route
+                path="/applied-jobs"
+                element={
+                  <SignedIn>
+                    <AppliedJobTable />
+                  </SignedIn>
+                }
+              />
+              
+              {/* Catch all route */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
+            
+            {/* Dashboard route without Navbar */}
+            <Route
+              path="/dashboard/*"
+              element={
+                <RecruiterRoute>
+                  <Dashboard />
+                </RecruiterRoute>
+              }
+            />
+            
+            {/* Clerk auth routes */}
+            <Route
+              path="/sign-in/*"
+              element={
+                <SignedIn>
+                  <Navigate to="/dashboard" />
+                </SignedIn>
+              }
+            />
+            
+            <Route
+              path="/sign-up/*"
+              element={
+                <SignedIn>
+                  <Navigate to="/dashboard" />
+                </SignedIn>
+              }
+            />
+          </Routes>
+          
+          <Toaster position="top-right" />
+        </Router>
+      </ModalProvider>
     </ThemeProvider>
   );
 }
 
-export default AppWrapper;
+export default App;
