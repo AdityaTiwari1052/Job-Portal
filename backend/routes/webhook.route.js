@@ -1,12 +1,26 @@
 import express from 'express';
+import User from '../models/user.model.js';
 import { handleClerkWebhook } from '../controllers/webhook.controller.js';
 
 const router = express.Router();
 
-// Test endpoint to verify webhook route is working
-router.get('/test', (req, res) => {
-    console.log('Webhook test endpoint hit');
-    res.status(200).json({ status: 'success', message: 'Webhook route is working' });
+// Test database connection
+router.get('/test-db', async (req, res) => {
+    try {
+        const userCount = await User.countDocuments();
+        return res.status(200).json({ 
+            success: true, 
+            message: 'Database connection successful',
+            userCount
+        });
+    } catch (error) {
+        console.error('Database connection error:', error);
+        return res.status(500).json({ 
+            success: false, 
+            error: 'Database connection failed',
+            details: error.message 
+        });
+    }
 });
 
 // Middleware to handle raw body
@@ -27,6 +41,12 @@ router.post('/clerk',
     // Process the request
     (req, res, next) => {
         try {
+            // Skip verification for test requests
+            if (req.headers['svix-signature'] === 'test-signature') {
+                console.log('Test webhook - skipping verification');
+                req.isTest = true;
+            }
+            
             // Parse the raw body to JSON
             if (req.rawBody) {
                 req.body = JSON.parse(req.rawBody);
@@ -34,7 +54,11 @@ router.post('/clerk',
             next();
         } catch (err) {
             console.error('Error parsing webhook body:', err);
-            return res.status(400).json({ error: 'Invalid JSON payload' });
+            return res.status(400).json({ 
+                success: false,
+                error: 'Invalid JSON payload',
+                details: err.message 
+            });
         }
     },
     
