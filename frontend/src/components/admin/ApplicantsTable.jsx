@@ -1,241 +1,251 @@
 import React, { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { createSelector } from '@reduxjs/toolkit';
 import { Button } from '../ui/button';
-import { Check, X, Download, User, Mail, Phone, Calendar as CalendarIcon, Briefcase, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { setAllApplicants } from '../../redux/applicationSlice';
+import { FileText, User, Check, X, Clock, File } from 'lucide-react';
+import { Badge } from '../ui/badge';
+import { setApplications, setLoading, setError } from '../../redux/applicationSlice';
 import api from '../../utils/api';
 
-const selectApplicants = createSelector(
-  (state) => state.application.applicants,
-  (applicants) => (Array.isArray(applicants) ? applicants : [])
-);
-
-const ApplicantsTable = () => {
+const ApplicantsTable = ({ jobId }) => {
   const dispatch = useDispatch();
-  const applicants = useSelector(selectApplicants);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  
+  // Update the selector to access the correct state path
+  const { applications = [], status, error } = useSelector(
+    (state) => ({
+      applications: state.application?.applications || [],
+      status: state.application?.status || 'idle',
+      error: state.application?.error || null
+    })
+  );
 
-  const fetchApplicants = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      
-      // Get the recruiter token
-      const token = localStorage.getItem('recruiterToken');
-      console.log('Recruiter Token:', token ? 'Token exists' : 'No token found');
-      
-      if (!token) {
-        throw new Error('No authentication token found. Please log in again.');
-      }
-
-      console.log('Fetching applicants...');
-      // Use the existing user/me/applicants endpoint
-      const response = await api.get('/user/me/applicants', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      if (response.data?.success) {
-        const applications = response.data.data?.applications || [];
-        console.log('Fetched applications:', applications);
-        
-        // Transform the data to match what the frontend expects
-        const formattedApplicants = applications.map(app => ({
-          _id: app._id,
-          status: app.status,
-          appliedAt: app.appliedAt,
-          job: app.job,
-          user: app.applicant,
-          resume: app.applicant?.resume
-        }));
-        
-        dispatch(setAllApplicants(formattedApplicants));
-      } else {
-        throw new Error(response.data?.message || 'Failed to fetch applicants');
-      }
-    } catch (err) {
-      console.error('Error details:', {
-        message: err.message,
-        stack: err.stack
-      });
-      setError(err.message || 'Failed to load applicants');
-      toast.error(err.message || 'Failed to load applicants');
-    } finally {
-      setIsLoading(false);
-    }
-  };
   useEffect(() => {
-    fetchApplicants();
-  }, [dispatch]);
+    const fetchApplications = async () => {
+      try {
+        dispatch(setLoading(true));
+        console.log('[ApplicantsTable] Fetching applications...');
+        
+        const token = localStorage.getItem('recruiterToken');
+        if (!token) {
+          throw new Error('No authentication token found');
+        }
 
-  const handleStatusUpdate = async (applicationId, status) => {
+        const response = await api.get('/recruiter/applications', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        console.log('[ApplicantsTable] API response:', response.data);
+
+        if (!response.data || !Array.isArray(response.data.data)) {
+          throw new Error('Invalid response format from server');
+        }
+
+        let filteredData = response.data.data;
+        
+        // Filter by jobId if provided
+        if (jobId) {
+          filteredData = filteredData.filter(app => app.job?._id === jobId);
+        }
+
+        console.log(`[ApplicantsTable] Fetched ${filteredData.length} applications`);
+        dispatch(setApplications(filteredData));
+      } catch (err) {
+        console.error('[ApplicantsTable] Error fetching applications:', {
+          message: err.message,
+          response: err.response?.data
+        });
+        dispatch(setError(err.response?.data?.message || 'Failed to fetch applications'));
+      } finally {
+        dispatch(setLoading(false));
+      }
+    };
+
+    fetchApplications();
+  }, [dispatch, jobId]);
+
+  const handleStatusChange = async (applicationId, newStatus) => {
     try {
+      const token = localStorage.getItem('recruiterToken');
       const response = await api.patch(
-        `/recruiter/applications/status`, 
-
-        { applicationId,status },
+        '/recruiter/applications/status',
+        { 
+          applicationId,
+          status: newStatus 
+        },
         {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('recruiterToken')}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         }
       );
-      
-      if (response.data?.success=='success') {
-        toast.success('Application status updated successfully');
-        // Refresh the applicants list
-        await fetchApplicants();
-      } else {
-        throw new Error(response.data?.message || 'Failed to update status');
+
+      if (response.data?.status === 'success') {
+        // Update the application in the Redux store
+        const updatedApplications = applications.map(app => 
+          app._id === applicationId 
+            ? { ...app, status: newStatus }
+            : app
+        );
+        dispatch(setApplications(updatedApplications));
       }
     } catch (error) {
-      console.error('Error updating application status:', error);
-      toast.error(error.response?.data?.message || 'Failed to update application status');
+      console.error('Error updating application status:', {
+        message: error.message,
+        response: error.response?.data
+      });
     }
   };
 
-  if (isLoading) {
+  const filteredApplications = applications.filter(application => {
+    return jobId ? application.job?._id === jobId : true;
+  });
+
+  const getStatusBadge = (status) => {
+    switch (status?.toLowerCase()) {
+      case 'pending':
+      case 'applied':
+        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">
+          <Clock className="h-3 w-3 mr-1" /> Pending
+        </Badge>;
+      case 'shortlisted':
+        return <Badge variant="outline" className="bg-green-100 text-green-800">
+          <Check className="h-3 w-3 mr-1" /> Shortlisted
+        </Badge>;
+      case 'rejected':
+        return <Badge variant="outline" className="bg-red-100 text-red-800">
+          <X className="h-3 w-3 mr-1" /> Rejected
+        </Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  if (status === 'loading') {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-4 text-center text-red-500">
-        <p>{error}</p>
-        <Button 
-          variant="outline" 
-          onClick={fetchApplicants}
-          className="mt-2"
-        >
-          Retry
-        </Button>
+      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative" role="alert">
+        <strong className="font-bold">Error: </strong>
+        <span className="block sm:inline">{error}</span>
       </div>
     );
   }
 
-  if (applicants.length === 0) {
+  if (filteredApplications.length === 0) {
     return (
-      <div className="p-4 text-center text-gray-500">
-        No applicants found
+      <div className="text-center py-12">
+        <FileText className="mx-auto h-12 w-12 text-gray-400" />
+        <h3 className="mt-2 text-sm font-medium text-gray-900">No applications found</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          No applications have been submitted yet.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Applicant
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Job Title
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Status
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Applied On
-            </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {applicants.map((application) => (
-            <tr key={application._id}>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0 h-10 w-10">
-                    {application.user?.profilePicture ? (
-                      <img 
-                        className="h-10 w-10 rounded-full" 
-                        src={application.user.profilePicture} 
-                        alt={application.user.name} 
-                      />
-                    ) : (
-                      <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                        <User className="h-5 w-5 text-gray-400" />
-                      </div>
-                    )}
-                  </div>
-                  <div className="ml-4">
-                    <div className="text-sm font-medium text-gray-900">
-                      {application.user?.name || 'N/A'}
-                    </div>
-                    <div className="text-sm text-gray-500 flex items-center">
-                      <Mail className="h-3.5 w-3.5 mr-1" />
-                      {application.user?.email || 'N/A'}
-                    </div>
-                  </div>
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900">
-                  {application.job?.title || 'N/A'}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                  ${application.status === 'accepted' ? 'bg-green-100 text-green-800' : 
-                    application.status === 'rejected' ? 'bg-red-100 text-red-800' : 
-                    'bg-yellow-100 text-yellow-800'}`}>
-                  {application.status || 'pending'}
-                </span>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {new Date(application.appliedAt).toLocaleDateString()}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <div className="flex space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleStatusUpdate(application._id, 'accepted')}
-                    disabled={application.status === 'accepted'}
-                  >
-                    <Check className="h-4 w-4 mr-1" /> Accept
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => handleStatusUpdate(application._id, 'rejected')}
-                    disabled={application.status === 'rejected'}
-                  >
-                    <X className="h-4 w-4 mr-1" /> Reject
-                  </Button>
-                  {application.resume && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      asChild
-                    >
-                      <a 
-                        href={application.resume} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="flex items-center"
-                      >
-                        <Download className="h-4 w-4 mr-1" /> Resume
-                      </a>
-                    </Button>
-                  )}
-                </div>
-              </td>
+    <div className="space-y-4">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Applicant
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Job Title
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Resume
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Status
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Applied On
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {filteredApplications.map((application) => (
+              <tr key={application._id} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                      <User className="h-6 w-6 text-gray-500" />
+                    </div>
+                    <div className="ml-4">
+                      <div className="text-sm font-medium text-gray-900">
+                        {application.user?.name || 
+                         application.user?.email?.split('@')[0].charAt(0).toUpperCase() + application.user?.email?.split('@')[0].slice(1) || 
+                         'Anonymous'}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {application.user?.email || 'N/A'}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">{application.job?.title || 'N/A'}</div>
+                  <div className="text-sm text-gray-500">{application.job?.company || ''}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {application.resume ? (
+                    <a
+                      href={application.resume}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:text-indigo-900 flex items-center"
+                    >
+                      <File className="h-4 w-4 mr-1" /> View Resume
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">No resume</span>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {getStatusBadge(application.status)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {new Date(application.appliedAt).toLocaleDateString()}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap space-x-2">
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant={application.status === 'shortlisted' ? 'default' : 'outline'}
+                      size="sm"
+                      className={application.status === 'shortlisted' ? 'bg-green-100 text-green-800 hover:bg-green-200' : ''}
+                      onClick={() => handleStatusChange(application._id, 'shortlisted')}
+                    >
+                      <Check className="h-4 w-4 mr-1" /> Accept
+                    </Button>
+                    <Button 
+                      variant={application.status === 'rejected' ? 'default' : 'outline'}
+                      size="sm"
+                      className={application.status === 'rejected' ? 'bg-red-100 text-red-800 hover:bg-red-200' : ''}
+                      onClick={() => handleStatusChange(application._id, 'rejected')}
+                    >
+                      <X className="h-4 w-4 mr-1" /> Reject
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

@@ -9,6 +9,8 @@ const jobSlice = createSlice({
         searchJobByText: "",
         allAppliedJobs: [],
         searchedQuery: "",
+        selectedCategory: "",
+        selectedLocation: "",
         isLoading: false,
         error: null
     },
@@ -39,6 +41,12 @@ const jobSlice = createSlice({
         setSearchedQuery: (state, action) => {
             state.searchedQuery = action.payload;
         },
+        setSelectedCategory: (state, action) => {
+            state.selectedCategory = action.payload;
+        },
+        setSelectedLocation: (state, action) => {
+            state.selectedLocation = action.payload;
+        },
         setLoading: (state, action) => {
             state.isLoading = action.payload;
         },
@@ -56,6 +64,8 @@ export const {
     setSearchJobByText,
     setAllAppliedJobs,
     setSearchedQuery,
+    setSelectedCategory,
+    setSelectedLocation,
     setLoading,
     setError
 } = jobSlice.actions;

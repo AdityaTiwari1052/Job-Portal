@@ -20,84 +20,43 @@ export const companyLogoUpload = multer({
   },
 }).single("logo");
 
-// Single file upload for profile photo
-export const singleUpload = (req, res, next) => {
-  const uploadSingle = multer({
+// Resume file upload for resumes
+export const resumeUpload = (req, res, next) => {
+  const uploadResume = multer({
     storage: memoryStorage,
-    fileFilter: fileFilter,
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype === 'application/pdf') {
+        cb(null, true);
+      } else {
+        cb(new Error('Only PDF files are allowed'), false);
+      }
+    },
     limits: {
       fileSize: 1024 * 1024 * 5, // 5 MB file size limit
     },
-  }).single('profilePhoto');
+  }).single('resume');
   
-  uploadSingle(req, res, function(err) {
+  // Handle the upload
+  uploadResume(req, res, (err) => {
     if (err) {
-      console.error('File upload error:', err);
+      console.error('Resume upload error:', err);
+      // Send error response and stop the middleware chain
       return res.status(400).json({
         success: false,
-        message: err.message || 'Error uploading file.',
+        message: err.message || 'Error uploading resume.',
         code: err.code
       });
     }
+    
+    // If no file was uploaded, return an error
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file was uploaded or file type is not allowed',
+      });
+    }
+    
+    // If everything is okay, proceed to the next middleware
     next();
   });
-};
-
-// Multiple file uploads for other routes
-export const multiUpload = (req, res, next) => {
-  const uploadMultiple = multer({
-    storage: memoryStorage,
-    fileFilter: fileFilter,
-    limits: {
-      fileSize: 1024 * 1024 * 5, // 5 MB file size limit
-    },
-  }).fields([
-    { name: "resumeFile", maxCount: 1 },
-    { name: "profilePhoto", maxCount: 1 },
-    { name: "coverPhoto", maxCount: 1 },
-    { name: "image", maxCount: 1 },
-    { name: "logo", maxCount: 1 }
-  ]);
-
-  uploadMultiple(req, res, function(err) {
-    if (err) {
-      console.error('Multiple file upload error:', err);
-      return res.status(400).json({
-        success: false,
-        message: err.message || 'Error uploading files.',
-        code: err.code
-      });
-    }
-    next();
-  });
-};
-
-// Error handling middleware for multer
-export const handleMulterErrors = (err, req, res, next) => {
-  if (err) {
-    console.error('Multer error:', {
-      code: err.code,
-      message: err.message,
-      field: err.field,
-      stack: err.stack
-    });
-
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({
-        success: false,
-        message: 'File size is too large. Maximum size is 5MB.'
-      });
-    }
-    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-      return res.status(400).json({
-        success: false,
-        message: err.message || 'Invalid file type. Only images are allowed.'
-      });
-    }
-    return res.status(500).json({
-      success: false,
-      message: err.message || 'Error uploading file.'
-    });
-  }
-  next();
 };

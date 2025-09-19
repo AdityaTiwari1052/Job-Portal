@@ -19,7 +19,6 @@ const JobDescription = () => {
 
     const { user, isSignedIn } = useUser();
     const { getToken } = useAuth();
-
     const applyJobHandler = async () => {
         try {
             if (!isSignedIn) {
@@ -27,20 +26,43 @@ const JobDescription = () => {
                 navigate('/sign-in');
                 return;
             }
-
+    
             const token = await getToken();
             const res = await axios.post(
-                `${APPLICATION_API_END_POINT}/apply/${jobId}`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
+                `/api/v1${APPLICATION_API_END_POINT}/apply/${jobId}`,
+                {
+                    userId: user.id,
+                    resume: user.resume || '',
+                    coverLetter: ''
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                    }
+                }
             );
             
             if (res.data.success) {
                 setIsApplied(true);
-                const updatedSingleJob = {
-                    ...singleJob, 
-                    applications: [...(singleJob?.applications || []), { applicant: user?.id }]
+                // Create a new application object with the current user's ID
+                const newApplication = {
+                    _id: res.data.data?.application?._id || Date.now().toString(),
+                    applicant: user.id,
+                    job: jobId,
+                    status: 'applied',
+                    appliedAt: new Date().toISOString()
                 };
+                
+                // Update the single job in Redux with the new application
+                const updatedSingleJob = {
+                    ...singleJob,
+                    applications: [
+                        ...(singleJob?.applications || []),
+                        newApplication
+                    ]
+                };
+                
                 dispatch(setSingleJob(updatedSingleJob));
                 toast.success('Application submitted successfully!');
             }
@@ -49,23 +71,21 @@ const JobDescription = () => {
             toast.error(error.response?.data?.message || 'Failed to apply for the job');
         }
     };
-
     useEffect(() => {
         const fetchSingleJob = async () => {
             try {
                 const token = await getToken();
                 const res = await axios.get(
-                    `${JOB_API_END_POINT}/${jobId}`,
-                    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+                    `/api/v1${JOB_API_END_POINT}/${jobId}`,
+                    {
+                        headers: token ? { Authorization: `Bearer ${token}` } : {},
+                        params: { userId: user?.id }
+                    }
                 );
                 if (res.data.success) {
                     dispatch(setSingleJob(res.data.job));
-                    setIsApplied(
-                        res.data.job.applications?.some(app => 
-                            app.applicant === user?.id || 
-                            (typeof app === 'string' && app === user?.id)
-                        )
-                    );
+                    // Use the hasApplied flag from the backend
+                    setIsApplied(res.data.job.hasApplied || false);
                 }
             } catch (error) {
                 console.error('Error fetching job:', error);

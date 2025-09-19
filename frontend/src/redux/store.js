@@ -21,7 +21,7 @@ const persistConfig = {
   key: "root",
   version: 1,
   storage,
-  whitelist: ['auth'], 
+  blacklist: ['auth'], // Exclude auth data from persistence
 };
 
 const rootReducer = combineReducers({

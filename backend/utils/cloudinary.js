@@ -2,6 +2,12 @@ import { v2 as cloudinary } from "cloudinary";
 import dotenv from "dotenv";
 dotenv.config();
 
+// Debug: Log Cloudinary configuration
+console.log('🔧 Cloudinary Configuration:');
+console.log('CLOUD_NAME:', process.env.CLOUD_NAME ? 'Set' : 'NOT SET');
+console.log('API_KEY:', process.env.API_KEY ? 'Set (length: ' + process.env.API_KEY.length + ')' : 'NOT SET');
+console.log('API_SECRET:', process.env.API_SECRET ? 'Set (length: ' + process.env.API_SECRET.length + ')' : 'NOT SET');
+
 // Configure Cloudinary from environment variables
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
@@ -10,12 +16,10 @@ cloudinary.config({
   secure: true,
 });
 
-/**
- * Uploads a file buffer to Cloudinary.
- * @param {Buffer} buffer The file buffer to upload.
- * @param {string} folder The Cloudinary folder to upload into.
- * @returns {Promise<object>} A promise that resolves with the upload result.
- */
+// Test configuration
+console.log('✅ Cloudinary configured successfully');
+
+
 export const uploadBufferToCloudinary = (buffer, folder = "recruiter-logos") => {
   return new Promise((resolve, reject) => {
     // Create an upload stream

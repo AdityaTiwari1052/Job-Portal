@@ -2,8 +2,7 @@ import mongoose from 'mongoose';
 
 const jobApplicationSchema = new mongoose.Schema({
     user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        type: String, 
         required: true
     },
     job: {
@@ -12,24 +11,46 @@ const jobApplicationSchema = new mongoose.Schema({
         required: true
     },
     recruiter: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        type: String, 
         required: true
     },
     status: {
         type: String,
-        enum: ['pending', 'shortlisted', 'rejected', 'hired'],
-        default: 'pending'
+        enum: ['pending', 'shortlisted', 'rejected', 'hired', 'applied'],
+        default: 'applied'
+    },
+    resume: {
+        type: String,
+        default: ''
+    },
+    coverLetter: {
+        type: String,
+        default: ''
     },
     appliedAt: {
         type: Date,
         default: Date.now
     },
-   
 }, {
     timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
+});
+
+// Virtual for user details
+jobApplicationSchema.virtual('applicantDetails', {
+    ref: 'User',
+    localField: 'user',
+    foreignField: 'clerkUserId',
+    justOne: true
+});
+
+// Virtual for job details
+jobApplicationSchema.virtual('jobDetails', {
+    ref: 'Job',
+    localField: 'job',
+    foreignField: '_id',
+    justOne: true
 });
 
 // Add index for faster queries

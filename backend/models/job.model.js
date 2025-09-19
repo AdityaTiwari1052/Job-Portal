@@ -12,14 +12,7 @@ const jobSchema = new mongoose.Schema({
     requirements: [{
         type: String
     }],
-    salaryMin: {
-        type: Number,
-        required: true
-    },
-    salaryMax: {
-        type: Number,
-        required: true
-    },
+  
     experienceLevel: {
         type: String,
         required: true,
@@ -27,16 +20,21 @@ const jobSchema = new mongoose.Schema({
     },
     location: {
         type: String,
-        required: true
+        required: true,
+        enum: ['Delhi', 'Mumbai', 'Bangalore', 'Chennai', 'Hyderabad', 'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Noida', 'Gurgaon', 'Remote']
     },
     jobType: {
         type: String,
         required: true,
         enum: ['Full-time', 'Part-time', 'Contract', 'Internship', 'Temporary']
     },
-    skills: [{
+    category: {
         type: String,
-        required: true
+        required: true,
+        enum: ['Programming', 'Data Science', 'Designing', 'Networking', 'Management', 'Marketing', 'Cybersecurity']
+    },
+    skills: [{
+        type: String
     }],
     company: {
         type: mongoose.Schema.Types.ObjectId,
@@ -58,7 +56,7 @@ const jobSchema = new mongoose.Schema({
     },
     applications: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Application',
+        ref: 'JobApplication',
     }],
     isActive: {
         type: Boolean,

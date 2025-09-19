@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import axios from 'axios';
+import api from '@/utils/api';
 import { JOB_API_END_POINT } from '@/utils/constant';
 
 const PostJob = ({ onJobCreated }) => {
@@ -16,9 +16,11 @@ const PostJob = ({ onJobCreated }) => {
         requirements: "",
         salary: "",
         location: "",
+        category: "",
         jobType: "",
         experienceLevel: "",
         position: 0,
+        skills: [],
     });
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
@@ -37,23 +39,14 @@ const PostJob = ({ onJobCreated }) => {
     const submitHandler = async (e) => {
         e.preventDefault();
 
-        if (!input.title || !input.description || !input.jobType || !input.location) {
+        if (!input.title || !input.description || !input.jobType || !input.location || !input.category) {
             toast.error("Please fill in all required fields");
             return;
         }
 
         try {
             setLoading(true);
-            const response = await axios.post(
-                JOB_API_END_POINT,
-                input,
-                {
-                    withCredentials: true,
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            const response = await api.post(JOB_API_END_POINT, input);
             toast.success('Job posted successfully!');
 
             if (onJobCreated) {
@@ -66,9 +59,11 @@ const PostJob = ({ onJobCreated }) => {
                 requirements: "",
                 salary: "",
                 location: "",
+                category: "",
                 jobType: "",
                 experienceLevel: "",
                 position: 0,
+                skills: [],
             });
 
         } catch (error) {
@@ -111,8 +106,8 @@ const PostJob = ({ onJobCreated }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="jobType">Job Type *</Label>
-                        <Select 
-                            value={input.jobType} 
+                        <Select
+                            value={input.jobType}
                             onValueChange={(value) => selectChangeHandler('jobType', value)}
                         >
                             <SelectTrigger>
@@ -132,14 +127,77 @@ const PostJob = ({ onJobCreated }) => {
 
                     <div className="space-y-2">
                         <Label htmlFor="location">Location *</Label>
-                        <Input
-                            id="location"
-                            name="location"
+                        <Select
                             value={input.location}
-                            onChange={changeEventHandler}
-                            placeholder="e.g. New York, NY"
-                            required
-                        />
+                            onValueChange={(value) => selectChangeHandler('location', value)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select location" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem value="Delhi">Delhi</SelectItem>
+                                    <SelectItem value="Mumbai">Mumbai</SelectItem>
+                                    <SelectItem value="Bangalore">Bangalore</SelectItem>
+                                    <SelectItem value="Chennai">Chennai</SelectItem>
+                                    <SelectItem value="Hyderabad">Hyderabad</SelectItem>
+                                    <SelectItem value="Pune">Pune</SelectItem>
+                                    <SelectItem value="Kolkata">Kolkata</SelectItem>
+                                    <SelectItem value="Ahmedabad">Ahmedabad</SelectItem>
+                                    <SelectItem value="Jaipur">Jaipur</SelectItem>
+                                    <SelectItem value="Noida">Noida</SelectItem>
+                                    <SelectItem value="Gurgaon">Gurgaon</SelectItem>
+                                    <SelectItem value="Remote">Remote</SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="category">Category *</Label>
+                        <Select
+                            value={input.category}
+                            onValueChange={(value) => selectChangeHandler('category', value)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem value="Programming">Programming</SelectItem>
+                                    <SelectItem value="Data Science">Data Science</SelectItem>
+                                    <SelectItem value="Designing">Designing</SelectItem>
+                                    <SelectItem value="Networking">Networking</SelectItem>
+                                    <SelectItem value="Management">Management</SelectItem>
+                                    <SelectItem value="Marketing">Marketing</SelectItem>
+                                    <SelectItem value="Cybersecurity">Cybersecurity</SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="experienceLevel">Experience Level</Label>
+                        <Select
+                            value={input.experienceLevel}
+                            onValueChange={(value) => selectChangeHandler('experienceLevel', value)}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select experience level" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectGroup>
+                                    <SelectItem value="Entry Level">Entry Level</SelectItem>
+                                    <SelectItem value="Mid Level">Mid Level</SelectItem>
+                                    <SelectItem value="Senior">Senior</SelectItem>
+                                    <SelectItem value="Lead">Lead</SelectItem>
+                                    <SelectItem value="Manager">Manager</SelectItem>
+                                    <SelectItem value="Executive">Executive</SelectItem>
+                                </SelectGroup>
+                            </SelectContent>
+                        </Select>
                     </div>
                 </div>
 
@@ -157,24 +215,17 @@ const PostJob = ({ onJobCreated }) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="experienceLevel">Experience Level</Label>
-                        <Select 
-                            value={input.experienceLevel} 
-                            onValueChange={(value) => selectChangeHandler('experienceLevel', value)}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select experience level" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectGroup>
-                                    <SelectItem value="Internship">Internship</SelectItem>
-                                    <SelectItem value="Entry Level">Entry Level</SelectItem>
-                                    <SelectItem value="Mid Level">Mid Level</SelectItem>
-                                    <SelectItem value="Senior Level">Senior Level</SelectItem>
-                                    <SelectItem value="Lead">Lead</SelectItem>
-                                </SelectGroup>
-                            </SelectContent>
-                        </Select>
+                        <Label htmlFor="skills">Skills</Label>
+                        <Input
+                            id="skills"
+                            name="skills"
+                            value={input.skills.join(', ')}
+                            onChange={(e) => {
+                                const skillsArray = e.target.value.split(',').map(skill => skill.trim()).filter(skill => skill);
+                                setInput(prev => ({ ...prev, skills: skillsArray }));
+                            }}
+                            placeholder="e.g. JavaScript, React, Node.js"
+                        />
                     </div>
                 </div>
 

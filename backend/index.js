@@ -1,21 +1,30 @@
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-dotenv.config({ path: path.resolve(__dirname, '../.env') });
-
+import { clerkMiddleware } from '@clerk/express';
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import userRouter from "./routes/user.route.js"
 import connectDB from "./utils/db.js";
 import jobRoute from "./routes/job.route.js";
+import recruiterAuthRoute from "./routes/recruiterAuth.route.js";
 import recruiterRoute from "./routes/recruiter.route.js";
 import webhookRoutes from './routes/webhook.route.js';
-import testEndpoint from "./test-endpoint.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
+// Debug: Check if .env file is loaded
+console.log('🔧 Environment Variables Check:');
+console.log('SMTP_USER loaded:', process.env.SMTP_USER ? '✅ Yes' : '❌ No');
+console.log('SMTP_PASS loaded:', process.env.SMTP_PASS ? '✅ Yes (length: ' + process.env.SMTP_PASS.length + ')' : '❌ No');
+console.log('JWT_SECRET loaded:', process.env.JWT_SECRET ? '✅ Yes' : '❌ No');
+console.log('MONGO_URI loaded:', process.env.MONGO_URI ? '✅ Yes' : '❌ No');
+console.log('Environment file path:', path.resolve(__dirname, '../.env'));
+
 const app = express();
 
 // Webhook endpoint (must be before body parser and other middleware)
@@ -44,7 +53,9 @@ app.use(cookieParser());
 // Request logging middleware
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:5174',
   'http://127.0.0.1:5173',
+  'http://127.0.0.1:5174',
   'http://localhost:5000',
   'http://localhost:8000',
   'http://localhost:3000',
@@ -117,11 +128,50 @@ app.use(function (req, res, next) {
   next();
 });
 
+// Clerk middleware
+app.use(clerkMiddleware());
+
+// Public routes (no authentication required)
+app.get('/api/public', (req, res) => {
+  res.json({ message: 'This is a public endpoint' });
+});
+
+// Protected routes (authentication required)
+app.get('/api/protected', (req, res) => {
+  // req.auth contains the authenticated user's information
+  res.json({ 
+    message: 'This is a protected endpoint',
+    user: req.auth 
+  });
+});
+
+// Error handling middleware for unauthorized access
+app.use((err, req, res, next) => {
+  if (err.status === 401) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+      error: 'Unauthorized'
+    });
+  }
+  next(err);
+});
+
 // Request logging middleware
 app.use((req, res, next) => {
   // Skip logging for health checks
   if (req.originalUrl === '/health') {
     return next();
+  }
+
+  // Log API requests for debugging
+  if (req.originalUrl.startsWith('/api/')) {
+    console.log(`🔍 API Request: ${req.method} ${req.originalUrl}`);
+    console.log(`🔍 Headers:`, {
+      authorization: req.headers.authorization ? 'Present' : 'Missing',
+      origin: req.headers.origin,
+      'content-type': req.headers['content-type']
+    });
   }
   
   // Handle preflight requests
@@ -188,9 +238,18 @@ app.use((req, res, next) => {
   // Relaxed security headers - removed COEP/CORP to allow external resource loading
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   
-  // For Cloudinary and other external resources
-  res.setHeader('Content-Security-Policy', 
-    "default-src 'self'; img-src 'self' data: https: http:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://job-portal-v3b1.onrender.com http://localhost:8000 https://api.cloudinary.com; frame-src 'self' https://accounts.google.com; font-src 'self' data:; media-src 'self' data: https: http:;"
+  // For Cloudinary, Clerk, and other external resources
+  res.setHeader('Content-Security-Policy',
+    "default-src 'self'; " +
+    "img-src 'self' data: https: http: blob:; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://*.clerk.accounts.dev https://*.clerk.accounts.workers.dev https://*.clerk.dev https://*.clerk.vercel.com; " +
+    "style-src 'self' 'unsafe-inline'; " +
+    "connect-src https://job-portal-v3b1.onrender.com http://localhost:8000 http://localhost:5173 https://api.cloudinary.com https://*.clerk.accounts.dev https://*.clerk.accounts.workers.dev https://*.clerk.dev https://*.clerk.vercel.com https://clerk-telemetry.com; " +
+    "frame-src 'self' https://accounts.google.com https://*.clerk.accounts.dev https://*.clerk.dev; " +
+    "font-src 'self' data:; " +
+    "media-src 'self' data: https: http:; " +
+    "worker-src 'self' blob: https://*.clerk.accounts.workers.dev https://*.clerk.dev; " +
+    "child-src 'self' blob: https://*.clerk.accounts.workers.dev https://*.clerk.dev;"
   );
   
   next();
@@ -199,10 +258,57 @@ app.use((req, res, next) => {
 // API Routes
 app.use('/api/v1/user', userRouter);
 app.use("/api/v1/jobs", jobRoute);
+app.use("/api/v1/recruiter/auth", recruiterAuthRoute);
 app.use("/api/v1/recruiter", recruiterRoute);
 
-// Test endpoint
-app.use('/test', testEndpoint);
+// Global error handling middleware
+app.use((err, req, res, next) => {
+    console.error('Global error handler:', err);
+    
+    // Handle JWT errors
+    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+        return res.status(401).json({
+            success: false,
+            message: 'Authentication failed. Please log in again.'
+        });
+    }
+
+    // Handle validation errors
+    if (err.name === 'ValidationError') {
+        const messages = Object.values(err.errors).map(val => val.message);
+        return res.status(400).json({
+            success: false,
+            message: 'Validation error',
+            errors: messages
+        });
+    }
+
+    // Handle custom AppError
+    if (err.isOperational) {
+        return res.status(err.statusCode || 500).json({
+            success: false,
+            message: err.message
+        });
+    }
+
+    // Handle other errors
+    res.status(500).json({
+        success: false,
+        message: 'Something went wrong!',
+        error: process.env.NODE_ENV === 'development' ? err.message : {}
+    });
+});
+
+
+// Health check endpoint
+app.get('/api/v1/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
 
 // Static files and SPA fallback (MUST BE LAST)
 app.use(express.static(path.join(__dirname, "..", "frontend", "dist")));
@@ -212,7 +318,6 @@ app.get("*", (req, res) => {
 
 const PORT = process.env.PORT || 8000;
 
-// Health check endpoint
 // Start Server
 const startServer = async () => {
   await connectDB(); // Ensure database is connected first

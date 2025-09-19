@@ -1,18 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import Hero from './Hero';
 import Jobs from './Jobs';
 import FilterCard from './FilterCard';
-import { useModal } from '@/context/ModalContext';
 import RecruiterAuthModal from './auth/RecruiterAuthModal';
+import { useModal } from '../context/ModalContext';
 
 function Home() {
   const [showFilters, setShowFilters] = useState(true);
-  const { isRecruiterModalOpen, closeRecruiterModal } = useModal();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { isRecruiterModalOpen, openRecruiterModal, closeRecruiterModal } = useModal();
+
+  // Check if we should open the recruiter modal
+  useEffect(() => {
+    if (location.state?.showRecruiterLogin) {
+      openRecruiterModal();
+      // Clear the state to prevent reopening on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, openRecruiterModal]);
 
   return (
-    <div className={`min-h-screen bg-gray-50 transition-all duration-300 ${isRecruiterModalOpen ? 'filter blur-sm' : ''}`}>
+    <div className="min-h-screen bg-gray-50">
+
       <Hero />
-      
+
       <div className="container mx-auto px-4 py-6">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Filters Sidebar */}
@@ -20,7 +33,7 @@ function Home() {
             <div className="sticky top-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-lg font-semibold text-gray-800">Filters</h2>
-                <button 
+                <button
                   onClick={() => setShowFilters(false)}
                   className="lg:hidden text-gray-500 hover:text-gray-700"
                 >
@@ -32,12 +45,12 @@ function Home() {
               <FilterCard />
             </div>
           </div>
-          
+
           {/* Jobs List */}
           <div className="flex-1">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Latest Job Openings</h2>
-              <button 
+              <button
                 onClick={() => setShowFilters(!showFilters)}
                 className="lg:hidden px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors flex items-center gap-1"
               >
@@ -63,11 +76,13 @@ function Home() {
         </div>
       </div>
 
-      <RecruiterAuthModal 
+      {/* Recruiter Auth Modal */}
+      <RecruiterAuthModal
         isOpen={isRecruiterModalOpen}
         onClose={closeRecruiterModal}
         onSuccess={() => {
-          closeRecruiterModal();
+          // Optional: handle successful login/registration
+          console.log('Recruiter authentication successful');
         }}
       />
     </div>

@@ -1,17 +1,35 @@
-import { createSlice } from "@reduxjs/toolkit";
+import { createSlice } from '@reduxjs/toolkit';
+
+const initialState = {
+  applications: [],
+  status: 'idle',
+  error: null,
+};
 
 const applicationSlice = createSlice({
-    name: 'application',
-    initialState: {
-        applicants: [], 
+  name: 'applications',
+  initialState,
+  reducers: {
+    setApplications: (state, action) => {
+      state.applications = action.payload;
+      state.status = 'succeeded';
+      state.error = null;
     },
-    reducers: {
-        setAllApplicants: (state, action) => {
-            console.log('Setting applicants in Redux:', action.payload);
-            state.applicants = action.payload;
-        }
-    }
+    setLoading: (state, action) => {
+      state.status = action.payload ? 'loading' : 'idle';
+    },
+    setError: (state, action) => {
+      state.error = action.payload;
+      state.status = 'failed';
+    },
+    resetApplications: (state) => {
+      state.applications = [];
+      state.status = 'idle';
+      state.error = null;
+    },
+  },
 });
 
-export const { setAllApplicants } = applicationSlice.actions;
+export const { setApplications, setLoading, setError, resetApplications } = applicationSlice.actions;
+
 export default applicationSlice.reducer;

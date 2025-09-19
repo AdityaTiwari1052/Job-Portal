@@ -1,0 +1,19 @@
+[2025-09-19T09:59:23.713Z] === START DEBUG ===
+[2025-09-19T09:59:23.721Z] 1. Request headers: {
+  "host": "localhost:8000",
+  "user-agent": "curl/8.14.1",
+  "accept": "*/*",
+  "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OWRkNzUzOWQ1YThlZGJhZWMzNjhjZCIsImlhdCI6MTc1ODI3MzAyMCwiZXhwIjoxNzYwODY1MDIwfQ.NBGHkRr6eEzBZBKw7WRZdcrvJtnvk2Fq_tHbU0jjhsA",
+  "content-type": "application/json"
+}
+[2025-09-19T09:59:23.722Z] 2. Authenticated user: {
+  "_id": "689dd7539d5a8edbaec368cd",
+  "email": "aditya@abes.ac.in",
+  "role": "recruiter"
+}
+[2025-09-19T09:59:23.781Z] 3. Found 1 jobs for recruiter 689dd7539d5a8edbaec368cd
+[2025-09-19T09:59:23.782Z] 4. Searching for applications with job IDs: [
+  "68a0b30a654d3bc19e65f3ef"
+]
+[2025-09-19T09:59:23.927Z] 5. Found 1 applications
+[2025-09-19T09:59:23.928Z] 6. Sending response with applications

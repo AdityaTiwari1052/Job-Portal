@@ -24,15 +24,29 @@ const ManageJob = () => {
       const response = await api.get('/jobs/recruiter/my-jobs');
       
       if (response.data?.success) {
-        setJobs(Array.isArray(response.data.jobs) ? response.data.jobs : []);
+        // Make sure we have an array, even if empty
+        const jobsData = Array.isArray(response.data.jobs) ? response.data.jobs : [];
+        setJobs(jobsData);
+        
+        if (jobsData.length === 0) {
+          console.log('No jobs found for this recruiter');
+        }
       } else {
         throw new Error(response.data?.message || 'Failed to fetch jobs');
       }
     } catch (error) {
       console.error('Error fetching jobs:', error);
-      setError(error.response?.data?.message || 'Failed to load jobs. Please try again.');
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to load jobs. Please try again.';
+      setError(errorMessage);
       setJobs([]);
-      toast.error('Failed to load jobs');
+      toast.error(errorMessage);
+      
+      // If unauthorized, redirect to login
+      if (error.response?.status === 401) {
+        localStorage.removeItem('recruiterToken');
+        localStorage.removeItem('recruiterData');
+        navigate('/recruiter-login');
+      }
     } finally {
       setLoading(false);
     }
@@ -59,6 +73,20 @@ const ManageJob = () => {
       toast.error(error.response?.data?.message || 'Failed to update job visibility');
     } finally {
       setUpdating(null);
+    }
+  };
+
+  const handleDeleteJob = async (jobId) => {
+    if (window.confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+      try {
+        await api.delete(`/jobs/${jobId}`);
+        toast.success('Job deleted successfully');
+        // Refresh the jobs list
+        await fetchJobs();
+      } catch (error) {
+        console.error('Error deleting job:', error);
+        toast.error(error.response?.data?.message || 'Failed to delete job');
+      }
     }
   };
 
@@ -128,6 +156,9 @@ const ManageJob = () => {
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Visibility
               </th>
+              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -162,6 +193,17 @@ const ManageJob = () => {
                       <EyeOff className="h-4 w-4 mr-1" />
                     )}
                     {job.isVisible ? 'Visible' : 'Hidden'}
+                  </Button>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-center">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDeleteJob(job._id)}
+                    className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete
                   </Button>
                 </td>
               </tr>

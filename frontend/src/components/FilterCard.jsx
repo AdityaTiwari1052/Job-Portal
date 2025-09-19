@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Label } from './ui/label';
 import { useDispatch } from 'react-redux';
-import { setSearchedQuery } from '@/redux/jobSlice';
+import { setSearchedQuery, setSelectedCategory, setSelectedLocation } from '@/redux/jobSlice';
 
 const categories = [
   "Programming",
@@ -14,38 +14,49 @@ const categories = [
 ];
 
 const locations = [
-  "Delhi NCR",
+  "Delhi",
+  "Mumbai",
   "Bangalore",
+  "Chennai",
   "Hyderabad",
-  "Pune", 
-  "Mumbai"
+  "Pune",
+  "Kolkata",
+  "Ahmedabad",
+  "Jaipur",
+  "Noida",
+  "Gurgaon",
+  "Remote"
 ];
 
 const FilterCard = () => {
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [selectedLocations, setSelectedLocations] = useState([]);
-  const dispatch = useDispatch();
-  
-  const handleCategoryChange = (category) => {
-    setSelectedCategories(prev => 
-      prev.includes(category)
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    );
-  };
+   const [selectedCategories, setSelectedCategories] = useState([]);
+   const [selectedLocations, setSelectedLocations] = useState([]);
+   const dispatch = useDispatch();
 
-  const handleLocationChange = (location) => {
-    setSelectedLocations(prev => 
-      prev.includes(location)
-        ? prev.filter(l => l !== location)
-        : [...prev, location]
-    );
-  };
-  
-  useEffect(() => {
-    const allFilters = [...selectedCategories, ...selectedLocations];
-    dispatch(setSearchedQuery(allFilters.join(',')));
-  }, [selectedCategories, selectedLocations, dispatch]);
+   const handleCategoryChange = (category) => {
+     setSelectedCategories(prev =>
+       prev.includes(category)
+         ? prev.filter(c => c !== category)
+         : [...prev, category]
+     );
+   };
+
+   const handleLocationChange = (location) => {
+     setSelectedLocations(prev =>
+       prev.includes(location)
+         ? prev.filter(l => l !== location)
+         : [...prev, location]
+     );
+   };
+
+   useEffect(() => {
+     // Send all selected categories and locations as comma-separated strings
+     const categoryString = selectedCategories.join(',');
+     const locationString = selectedLocations.join(',');
+
+     dispatch(setSelectedCategory(categoryString));
+     dispatch(setSelectedLocation(locationString));
+   }, [selectedCategories, selectedLocations, dispatch]);
     
   return (
     <div className='space-y-6'>

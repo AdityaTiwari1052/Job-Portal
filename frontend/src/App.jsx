@@ -7,6 +7,11 @@ import Home from "./components/Home";
 import JobDescription from "./components/JobDescription";
 import Dashboard from "./components/Dashboard";
 import AppliedJobTable from "./components/AppliedJobTable";
+import ManageJob from "./components/ManageJob";
+import PostJob from "./components/admin/PostJob";
+import ApplicantsTable from "./components/admin/ApplicantsTable";
+import UserDashboard from "./components/UserDashboard";
+import RecruiterAuth from "./pages/RecruiterAuth";
 import { ModalProvider } from './context/ModalContext';
 import { ThemeProvider } from './components/ui/theme-provider';
 import api from './utils/api';
@@ -51,7 +56,21 @@ const PublicRoute = ({ children }) => {
 
   // If user is signed in and tries to access auth pages, redirect to dashboard
   if (isSignedIn && (location.pathname === '/sign-in' || location.pathname === '/sign-up')) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/user-dashboard" replace />;
+  }
+
+  return children;
+};
+
+// Recruiter route wrapper
+const RecruiterRoute = ({ children }) => {
+  const location = useLocation();
+  const recruiterToken = localStorage.getItem('recruiterToken');
+  const recruiterData = localStorage.getItem('recruiterData');
+
+  if (!recruiterToken || !recruiterData) {
+    // Redirect to home page with recruiter login modal
+    return <Navigate to="/" state={{ showRecruiterLogin: true }} replace />;
   }
 
   return children;
@@ -61,18 +80,17 @@ const PublicRoute = ({ children }) => {
 const ProtectedRoute = ({ children }) => {
   const { isLoaded, isSignedIn } = useAuth();
   const location = useLocation();
-  const recruiterToken = localStorage.getItem('recruiterToken');
 
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+       <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
     );
   }
 
-  // Allow access if either Clerk user is signed in or recruiter token exists
-  if (!isSignedIn && !recruiterToken) {
+  // Only check for Clerk authentication, not recruiter
+  if (!isSignedIn) {
     return <Navigate to="/sign-in" state={{ from: location }} replace />;
   }
 
@@ -91,6 +109,18 @@ function App() {
               <Route path="/description/:id" element={<JobDescription />} />
             </Route>
 
+            {/* Recruiter routes */}
+            <Route path="/dashboard" element={
+              <RecruiterRoute>
+                <Dashboard />
+              </RecruiterRoute>
+            }>
+              <Route index element={<Navigate to="manage" replace />} />
+              <Route path="manage" element={<ManageJob />} />
+              <Route path="applicants" element={<ApplicantsTable />} />
+              <Route path="post" element={<PostJob />} />
+            </Route>
+
             {/* Protected routes */}
             <Route element={
               <ProtectedRoute>
@@ -98,41 +128,31 @@ function App() {
               </ProtectedRoute>
             }>
               <Route path="/applied-jobs" element={<AppliedJobTable />} />
-              <Route path="/dashboard/*" element={<Dashboard />} />
+              <Route path="/user-dashboard" element={<UserDashboard />} />
             </Route>
 
             {/* Auth routes */}
             <Route path="/sign-in" element={
               <SignedIn>
-                <Navigate to="/dashboard" replace />
+                <Navigate to="/user-dashboard" replace />
               </SignedIn>
             } />
-            
+
             <Route path="/sign-up" element={
               <SignedIn>
-                <Navigate to="/dashboard" replace />
+                <Navigate to="/user-dashboard" replace />
               </SignedIn>
             } />
+
+            {/* Email verification routes - handled within modals */}
 
             {/* Catch all route */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          
-          <Toaster 
-            position="top-right"
-            richColors
-            closeButton
-            toastOptions={{
-              style: {
-                background: 'hsl(var(--background))',
-                color: 'hsl(var(--foreground))',
-                border: '1px solid hsl(var(--border))',
-                fontFamily: 'Inter, sans-serif',
-              },
-              duration: 3000,
-              className: 'toast',
-            }}
-          />
+
+          {/* Toast notifications */}
+          <Toaster position="top-right" richColors />
+
         </Router>
       </ModalProvider>
     </ThemeProvider>

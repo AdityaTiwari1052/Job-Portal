@@ -5,8 +5,15 @@ const ModalContext = createContext();
 export const ModalProvider = ({ children }) => {
   const [isRecruiterModalOpen, setIsRecruiterModalOpen] = useState(false);
 
-  const openRecruiterModal = () => setIsRecruiterModalOpen(true);
-  const closeRecruiterModal = () => setIsRecruiterModalOpen(false);
+  const openRecruiterModal = () => {
+    console.log('🔓 Opening recruiter modal');
+    setIsRecruiterModalOpen(true);
+  };
+
+  const closeRecruiterModal = () => {
+    console.log('🔒 Closing recruiter modal');
+    setIsRecruiterModalOpen(false);
+  };
 
   return (
     <ModalContext.Provider

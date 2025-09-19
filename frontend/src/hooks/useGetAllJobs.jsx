@@ -6,7 +6,7 @@ import { useDispatch, useSelector } from 'react-redux'
 
 const useGetAllJobs = () => {
     const dispatch = useDispatch();
-    const { searchedQuery } = useSelector(store => store.job);
+    const { searchedQuery, selectedCategory, selectedLocation } = useSelector(store => store.job);
     
     useEffect(() => {
         const fetchAllJobs = async () => {
@@ -14,9 +14,24 @@ const useGetAllJobs = () => {
             dispatch(setLoading(true));
             
             try {
-                const url = `${JOB_API_END_POINT}/all${searchedQuery ? `?keyword=${encodeURIComponent(searchedQuery)}` : ''}`;
+                // Build query parameters
+                const params = new URLSearchParams();
+
+                if (searchedQuery) {
+                    params.append('keyword', searchedQuery);
+                }
+                if (selectedCategory) {
+                    params.append('category', selectedCategory);
+                }
+                if (selectedLocation) {
+                    params.append('location', selectedLocation);
+                }
+
+                const queryString = params.toString();
+                const url = `/api/v1${JOB_API_END_POINT}/all${queryString ? `?${queryString}` : ''}`;
                 console.log('Making request to:', url);
-                
+                console.log('Filters - Category:', selectedCategory, 'Location:', selectedLocation);
+
                 const res = await axios.get(url, {
                     withCredentials: true,
                     headers: {
@@ -53,7 +68,7 @@ const useGetAllJobs = () => {
         };
 
         fetchAllJobs();
-    }, [dispatch, searchedQuery]);
+    }, [dispatch, searchedQuery, selectedCategory, selectedLocation]);
 };
 
 export default useGetAllJobs;

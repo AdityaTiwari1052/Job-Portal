@@ -15,11 +15,23 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      headers: {
+        "Content-Security-Policy": `
+          default-src 'self';
+          script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.clerk.accounts.dev https://*.clerk.accounts.workers.dev https://*.clerk.dev https://*.clerk.vercel.com;
+          style-src 'self' 'unsafe-inline' https://*.clerk.accounts.dev;
+          img-src 'self' data: https:;
+          font-src 'self';
+          connect-src 'self' http://localhost:8000 http://localhost:5173 https://job-portal-v3b1.onrender.com https://*.clerk.accounts.dev https://*.clerk.accounts.workers.dev https://*.clerk.dev https://*.clerk.vercel.com;
+          frame-src 'self' https://*.clerk.accounts.dev;
+          worker-src 'self' blob: https://*.clerk.accounts.dev https://*.clerk.accounts.workers.dev;
+        `.replace(/\s+/g, ' ').trim(),
+      },
       proxy: {
         '/api': {
           target: 'http://localhost:8000', // Your backend server URL
           changeOrigin: true,
-          rewrite: (path) => path.replace(/^\/api/, ''),
+          secure: false,
         },
       },
     },

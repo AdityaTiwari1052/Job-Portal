@@ -1,17 +1,37 @@
 import User from '../models/user.model.js';
 import Job from '../models/job.model.js';
 import JobApplication from '../models/jobApplication.model.js';
+import cloudinary from "../utils/cloudinary.js";
+import AppError from '../utils/appError.js';
 
 export const getUserData = async (req, res, next) => {
     try {
-        const userId = req.params.id;
+        const paramId = req.params.id;
 
-        // Find user by ID
-        const user = await User.findById(userId).select('-__v');
+        let userId;
+
+        // If the parameter is "me", get the authenticated user's ID
+        if (paramId === 'me') {
+            userId = req.auth?.userId || req.user?.id;
+            if (!userId) {
+                return next(new AppError('User not authenticated', 401));
+            }
+        } else {
+            // Otherwise, use the provided ID
+            userId = paramId;
+        }
+
+        // Find user by clerkUserId if it's "me", otherwise by _id
+        let user;
+        if (paramId === 'me') {
+            user = await User.findOne({ clerkUserId: userId }).select('-__v');
+        } else {
+            user = await User.findById(userId).select('-__v');
+        }
 
         // Check if user exists
         if (!user) {
-            return next(new AppError('No user found with that ID', 404));
+            return next(new AppError('No user found', 404));
         }
 
         // Return user data
@@ -23,56 +43,15 @@ export const getUserData = async (req, res, next) => {
         });
 
     } catch (error) {
-        next(error);
+        console.error('Error in getUserData:', error);
+        next(new AppError(error.message || 'Failed to get user data', 500));
     }
 };
 
-export const applyJob = async (req, res, next) => {
+export const getAppliedJobs = async (req, res, next) => {
     try {
-        const { id: jobId } = req.params;
-        const userId = req.user._id; // From our middleware
-
-        // Check if job exists
-        const job = await Job.findById(jobId);
-        if (!job) {
-            return next(new AppError('Job not found', 404));
-        }
-
-        // Check if already applied
-        const existingApplication = await Application.findOne({
-            job: jobId,
-            applicant: userId
-        });
-
-        if (existingApplication) {
-            return next(new AppError('You have already applied to this job', 400));
-        }
-
-        // Create new application
-        const application = await Application.create({
-            job: jobId,
-            applicant: userId,
-            status: 'pending'
-        });
-
-        // Add application to job
-        job.applications.push(application._id);
-        await job.save();
-
-        res.status(201).json({
-            success: true,
-            message: 'Application submitted successfully',
-            application
-        });
-    } catch (error) {
-        next(error);
-    }
-};
-
-export const getAppliedJobs = async (req, res) => {
-    try {
-        const userId = req.id;
-        const application = await Application.find({ applicant: userId }).sort({ createdAt: -1 }).populate({
+        const userId = req.user?.id;
+        const application = await JobApplication.find({ user: userId }).sort({ createdAt: -1 }).populate({
             path: 'job',
             options: { sort: { createdAt: -1 } },
             populate: {
@@ -91,18 +70,31 @@ export const getAppliedJobs = async (req, res) => {
             success: true
         })
     } catch (error) {
-        console.log(error);
+        console.error('Error in getAppliedJobs:', error);
+        next(new AppError(error.message || 'Failed to get applied jobs', 500));
     }
 }
 
 export const applyForJob = async (req, res, next) => {
     try {
         const { jobId } = req.params;
-        const userId = req.user?._id || req.id; // Handle both authenticated and webhook calls
-        const { resume, coverLetter = '' } = req.body;
+        const { coverLetter = '' } = req.body;
+        
+        // Get user ID from the authenticated request
+        const userId = req.auth?.userId || req.user?.id;
+        if (!userId) {
+            return next(new AppError('User not authenticated', 401));
+        }
 
-        if (!jobId || !userId) {
-            return next(new AppError('Job ID and User ID are required', 400));
+        // Find the user to get their resume
+        const user = await User.findOne({ clerkUserId: userId });
+        if (!user) {
+            return next(new AppError('User not found', 404));
+        }
+
+        // Check if user has a resume
+        if (!user.resume) {
+            return next(new AppError('Please upload a resume before applying', 400));
         }
 
         // Check if job exists
@@ -121,95 +113,204 @@ export const applyForJob = async (req, res, next) => {
             return next(new AppError('You have already applied to this job', 400));
         }
 
-        // Create new application
+        // Create new application with user's resume
         const application = await JobApplication.create({
             user: userId,
             job: jobId,
             recruiter: job.created_by,
-            resume,
-            coverLetter
+            resume: user.resume,
+            coverLetter,
+            status: 'applied'
         });
 
-        // Populate the application with user and job details
+        // Add the application to the job's applications array
+        job.applications.push(application._id);
+        await job.save();
+
+        // Populate the application with user and job details using virtuals
         const populatedApp = await JobApplication.findById(application._id)
-            .populate('user', 'name email profilePicture')
-            .populate('job', 'title')
+            .populate('jobDetails')
+            .populate('applicantDetails', 'firstName lastName email profileImageUrl')
             .lean();
 
         res.status(201).json({
             success: true,
-            data: { application: populatedApp }
-        });
-
-    } catch (error) {
-        next(new AppError('Failed to submit application', 500));
-    }
-};
-
-export const getUserApplications = async (req, res) => {
-    try {
-        console.log('getUserApplications - Request user:', req.user);
-        console.log('Request headers:', req.headers);
-        
-        if (!req.user || !req.user._id) {
-            console.error('User not authenticated or missing user ID');
-            return res.status(401).json({
-                success: false,
-                message: 'Authentication required'
-            });
-        }
-
-        // Disable caching for this response
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-
-        // Get jobs posted by this recruiter
-        const jobs = await Job.find({ postedBy: req.user._id }).select('_id');
-        const jobIds = jobs.map(job => job._id);
-  
-        // Get applications for these jobs
-        const applications = await JobApplication.find({ job: { $in: jobIds } })
-            .populate('applicant', 'name email phone')
-            .populate({
-                path: 'job',
-                select: 'title companyName',
-                populate: {
-                    path: 'postedBy',
-                    select: 'companyName'
-                }
-            })
-            .sort({ appliedAt: -1 });
-  
-        // Send fresh data
-        return res.status(200).json({
-            success: true,
+            message: 'Application submitted successfully',
             data: {
-                applications: applications.map(app => ({
-                    _id: app._id,
-                    status: app.status,
-                    appliedAt: app.appliedAt,
-                    job: {
-                        _id: app.job?._id,
-                        title: app.job?.title,
-                        company: app.job?.companyName || (app.job?.postedBy?.companyName || 'N/A')
-                    },
-                    applicant: {
-                        _id: app.applicant?._id,
-                        name: app.applicant?.name,
-                        email: app.applicant?.email,
-                        phone: app.applicant?.phone,
-                        resume: app.resume
-                    }
-                }))
+                application: {
+                    ...populatedApp,
+                    job: populatedApp.jobDetails,
+                    user: populatedApp.applicantDetails
+                }
             }
         });
+
     } catch (error) {
-        console.error('Error in getUserApplications:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error fetching applications',
-            error: error.message
-        });
+        console.error('Error in applyForJob:', error);
+        next(new AppError(error.message || 'Failed to submit application', 500));
     }
 };
+
+export const uploadResume = async (req, res, next) => {
+    try {
+        console.log('🔄 Resume upload controller called');
+        console.log('🔍 Request auth:', req.auth);
+        console.log('🔍 Request user:', req.user);
+
+        // Get user ID from the authenticated request
+        const userId = req.auth?.userId || req.user?.id;
+        console.log('🔑 User ID:', userId);
+
+        if (!userId) {
+            return next(new AppError('User not authenticated', 401));
+        }
+
+        // Check if file was uploaded
+        if (!req.file) {
+            return next(new AppError('No file uploaded', 400));
+        }
+
+        console.log('Uploading resume for user:', userId);
+        console.log('File details:', {
+            originalname: req.file.originalname,
+            mimetype: req.file.mimetype,
+            size: req.file.size
+        });
+
+        // Upload file to Cloudinary
+        const cloudinaryResult = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+                {
+                    resource_type: 'raw',
+                    folder: 'resumes',
+                    public_id: `resume_${userId}_${Date.now()}`,
+                    format: 'pdf'
+                },
+                (error, result) => {
+                    if (error) {
+                        console.error('Cloudinary upload error:', error);
+                        reject(error);
+                    } else {
+                        console.log('Cloudinary upload success:', result.secure_url);
+                        resolve(result);
+                    }
+                }
+            );
+            stream.end(req.file.buffer);
+        });
+
+        // Get resume name from request body or use default
+        const resumeName = req.body.resumeName || req.file.originalname || 'My Resume';
+
+        // Update user's resume field in database
+        const updatedUser = await User.findOneAndUpdate(
+            { clerkUserId: userId },
+            {
+                resume: cloudinaryResult.secure_url,
+                resumeName: resumeName,
+                updatedAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!updatedUser) {
+            return next(new AppError('User not found', 404));
+        }
+
+        console.log('Resume uploaded successfully for user:', userId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Resume uploaded successfully',
+            data: {
+                resumeUrl: cloudinaryResult.secure_url,
+                user: {
+                    id: updatedUser._id,
+                    resume: updatedUser.resume,
+                    resumeName: updatedUser.resumeName
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in uploadResume:', error);
+        next(new AppError(error.message || 'Failed to upload resume', 500));
+    }
+};
+
+export const deleteResume = async (req, res, next) => {
+    try {
+        // Get user ID from the authenticated request
+        const userId = req.auth?.userId || req.user?.id;
+        if (!userId) {
+            return next(new AppError('User not authenticated', 401));
+        }
+
+        console.log('Deleting resume for user:', userId);
+
+        // Find the user and get their current resume URL
+        const user = await User.findOne({ clerkUserId: userId });
+        if (!user) {
+            return next(new AppError('User not found', 404));
+        }
+
+        if (!user.resume) {
+            return next(new AppError('No resume found to delete', 404));
+        }
+
+        // Extract the public_id from the Cloudinary URL for deletion
+        const resumeUrl = user.resume;
+        const publicIdMatch = resumeUrl.match(/\/resumes\/([^.]+)/);
+        if (publicIdMatch) {
+            const publicId = `resumes/${publicIdMatch[1]}`;
+
+            try {
+                // Delete from Cloudinary
+                await new Promise((resolve, reject) => {
+                    cloudinary.uploader.destroy(publicId, (error, result) => {
+                        if (error) {
+                            console.error('Cloudinary delete error:', error);
+                            // Don't fail the whole operation if Cloudinary delete fails
+                            resolve();
+                        } else {
+                            console.log('Cloudinary delete success:', result);
+                            resolve();
+                        }
+                    });
+                });
+            } catch (cloudinaryError) {
+                console.error('Error deleting from Cloudinary:', cloudinaryError);
+                // Continue with database update even if Cloudinary delete fails
+            }
+        }
+
+        // Update user's resume field to null in database
+        const updatedUser = await User.findOneAndUpdate(
+            { clerkUserId: userId },
+            {
+                resume: null,
+                resumeName: null,
+                updatedAt: new Date()
+            },
+            { new: true }
+        );
+
+        console.log('Resume deleted successfully for user:', userId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Resume deleted successfully',
+            data: {
+                user: {
+                    id: updatedUser._id,
+                    resume: updatedUser.resume
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error in deleteResume:', error);
+        next(new AppError(error.message || 'Failed to delete resume', 500));
+    }
+};
+

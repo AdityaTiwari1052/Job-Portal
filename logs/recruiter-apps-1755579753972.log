@@ -1,0 +1,43 @@
+[2025-08-19T05:02:33.786Z] === START DEBUG ===
+[2025-08-19T05:02:33.787Z] 1. Request headers: {
+  "host": "localhost:8000",
+  "connection": "keep-alive",
+  "sec-ch-ua-platform": "\"Windows\"",
+  "authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OWRkNzUzOWQ1YThlZGJhZWMzNjhjZCIsImlhdCI6MTc1NTU3NTc4MiwiZXhwIjoxNzU1NjYyMTgyfQ.Lre-e-Bm2HTY6eD07RDO40R78I3KQ5O27rsgf-1x1Y4",
+  "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+  "accept": "application/json",
+  "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Brave\";v=\"139\", \"Chromium\";v=\"139\"",
+  "sec-ch-ua-mobile": "?0",
+  "sec-gpc": "1",
+  "accept-language": "en-US,en;q=0.5",
+  "origin": "http://localhost:5173",
+  "sec-fetch-site": "same-site",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-dest": "empty",
+  "referer": "http://localhost:5173/",
+  "accept-encoding": "gzip, deflate, br, zstd",
+  "cookie": "__clerk_db_jwt_9_XyUgPA=dvb_31C64sP878UhvJKuHp4LthfV3Yp; __clerk_db_jwt=dvb_31C64sP878UhvJKuHp4LthfV3Yp; token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OWRkNzUzOWQ1YThlZGJhZWMzNjhjZCIsImlhdCI6MTc1NTM1MzEwNCwiZXhwIjoxNzU1NDM5NTA0fQ.UOMqE9RKmcsW1JB_3QcFQpYIKgGPouOT4V5eSdLNdjM; __client_uat_9_XyUgPA=0; __client_uat=0",
+  "if-none-match": "W/\"24f-31PQCUAy7ytpYLEDfFbasMMyQ4I\""
+}
+[2025-08-19T05:02:33.789Z] 2. Authenticated user: {
+  "_id": "689dd7539d5a8edbaec368cd",
+  "email": "aditya@abes.ac.in"
+}
+[2025-08-19T05:02:33.847Z] 3. Found 1 jobs for recruiter 689dd7539d5a8edbaec368cd
+[2025-08-19T05:02:33.848Z] 4. Searching for applications with job IDs: [
+  "68a0b30a654d3bc19e65f3ef"
+]
+[2025-08-19T05:02:33.967Z] 5. Found 1 applications
+[2025-08-19T05:02:33.968Z] Application user details: {
+  "applicationId": "68a0e418726b182ca0e3b603",
+  "userField": "user_31KXJtq0o5tudL7aINCh1UaOsEc",
+  "applicantDetails": {
+    "_id": "689f5b0a7c28c9763fb425df",
+    "clerkUserId": "user_31KXJtq0o5tudL7aINCh1UaOsEc",
+    "email": "at9997152@gmail.com",
+    "resume": "https://res.cloudinary.com/dhlldanze/image/upload/v1755331457/resumes/resume_user_31KXJtq0o5tudL7aINCh1UaOsEc.pdf"
+  },
+  "hasApplicantDetails": true,
+  "applicantDetailsId": "689f5b0a7c28c9763fb425df"
+}
+[2025-08-19T05:02:33.969Z] 6. Sending response with applications
