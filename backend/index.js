@@ -23,6 +23,8 @@ console.log('SMTP_USER loaded:', process.env.SMTP_USER ? '✅ Yes' : '❌ No');
 console.log('SMTP_PASS loaded:', process.env.SMTP_PASS ? '✅ Yes (length: ' + process.env.SMTP_PASS.length + ')' : '❌ No');
 console.log('JWT_SECRET loaded:', process.env.JWT_SECRET ? '✅ Yes' : '❌ No');
 console.log('MONGO_URI loaded:', process.env.MONGO_URI ? '✅ Yes' : '❌ No');
+console.log('CLERK_PUBLISHABLE_KEY loaded:', process.env.CLERK_PUBLISHABLE_KEY ? '✅ Yes' : '❌ No');
+console.log('CLERK_SECRET_KEY loaded:', process.env.CLERK_SECRET_KEY ? '✅ Yes' : '❌ No');
 console.log('Environment file path:', path.resolve(__dirname, '../.env'));
 
 const app = express();

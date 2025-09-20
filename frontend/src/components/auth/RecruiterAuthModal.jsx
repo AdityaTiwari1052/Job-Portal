@@ -1,15 +1,19 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Mail, User, Eye, EyeOff, Upload, CheckCircle, LogIn } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../../utils/api';
 import { RECRUITER_API_END_POINT } from '../../utils/constant';
+import { createPortal } from 'react-dom';
 
 const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [currentStep, setCurrentStep] = useState(1);
   const [otp, setOtp] = useState('');
   const [otpError, setOtpError] = useState('');
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   const [formData, setFormData] = useState({
     companyName: '',
     email: '',
@@ -18,12 +22,51 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
     logoPreview: '',
     logoFileName: ''
   });
-
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [apiAvailable, setApiAvailable] = useState(true);
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
+  const modalRef = useRef(null);
+  const closeBtnRef = useRef(null);
+
+  // Debug effect to log props changes
+  useEffect(() => {
+    console.log('Modal props updated:', { isOpen, onClose: typeof onClose });
+  }, [isOpen, onClose]);
+
+  const handleClose = useCallback((e) => {
+    console.log('🔴 Close button clicked - handleClose called');
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    console.log('🔴 Calling onClose, typeof onClose:', typeof onClose);
+    if (typeof onClose === 'function') {
+      console.log('🔴 onClose is a function, calling it now');
+      onClose();
+      console.log('🔴 onClose called successfully');
+    } else {
+      console.error('🔴 onClose is not a function:', onClose);
+    }
+  }, [onClose]);
+
+  // Handle escape key press
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const handleEscape = (e) => {
+      if (e.key === 'Escape') {
+        console.log('Escape key pressed');
+        handleClose(e);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen, handleClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -32,6 +75,9 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
     localStorage.removeItem('tempRecruiterToken');
     localStorage.removeItem('tempRecruiterData');
     localStorage.removeItem('pendingVerificationEmail');
+
+    // Clear any cached authorization headers from previous sessions
+    delete api.defaults.headers.common['Authorization'];
 
     // Reset form data
     setFormData({
@@ -46,6 +92,9 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
     setShowPassword(false);
     setOtp('');
     setOtpError('');
+    setIsForgotPassword(false);
+    setResetEmail('');
+    setResetEmailSent(false);
 
     // Check API health when modal opens
     checkApiHealth();
@@ -58,6 +107,12 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
     setOtp('');
     setOtpError('');
   }, [isLogin]);
+
+  useEffect(() => {
+    if (isOpen && closeBtnRef.current) {
+      closeBtnRef.current.focus();
+    }
+  }, [isOpen]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -163,7 +218,8 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
         localStorage.setItem('recruiterToken', token);
         localStorage.setItem('recruiterData', JSON.stringify(recruiterData));
 
-        // Set authorization header for future requests
+        // Set authorization header for future requests (clear any existing first)
+        delete api.defaults.headers.common['Authorization'];
         api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
         toast.success('Login successful!');
@@ -367,7 +423,6 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
     }
   };
 
-
   const handleOtpVerification = async (e) => {
     e.preventDefault();
 
@@ -405,6 +460,7 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
           // Finalize authentication with stored data
           localStorage.setItem('recruiterToken', tempToken);
           localStorage.setItem('recruiterData', tempRecruiterData);
+          delete api.defaults.headers.common['Authorization'];
           api.defaults.headers.common['Authorization'] = `Bearer ${tempToken}`;
         } else if (response.data.token) {
           // Use token from OTP response if no temp data
@@ -412,6 +468,7 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
           const recruiterData = data?.recruiter || {};
           localStorage.setItem('recruiterToken', token);
           localStorage.setItem('recruiterData', JSON.stringify(recruiterData));
+          delete api.defaults.headers.common['Authorization'];
           api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         }
 
@@ -446,40 +503,95 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
     }
   };
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+
+    if (!resetEmail.trim()) {
+      toast.error('Please enter your email address');
+      return;
+    }
+
+    if (!/\S+@\S+\.\S+/.test(resetEmail)) {
+      toast.error('Please enter a valid email address');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      console.log('🔐 Sending password reset email to:', resetEmail);
+
+      const response = await api.post(`${RECRUITER_API_END_POINT}/forgot-password`, {
+        email: resetEmail.trim()
+      });
+
+      console.log('📥 Forgot password response:', response.data);
+
+      if (response.data?.status === 'success') {
+        setResetEmailSent(true);
+        toast.success('Password reset link sent to your email!');
+      } else {
+        toast.error(response.data?.message || 'Failed to send reset email');
+      }
+
+    } catch (error) {
+      console.error('❌ Forgot password error:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to send reset email';
+      toast.error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOverlayClick = (e) => {
+    console.log('Overlay clicked');
+    if (e.target === e.currentTarget) {
+      console.log('Calling onClose from overlay');
+      handleClose(e);
+    }
+  };
+
   if (!isOpen) return null;
 
+  console.log('Rendering RecruiterAuthModal, isOpen:', isOpen);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose}></div>
-      <div className="relative bg-white rounded-lg w-full max-w-sm h-[490px] overflow-hidden z-10">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={handleOverlayClick}
+      ref={modalRef}
+    >
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+      <div 
+        className="relative bg-white rounded-lg w-full max-w-sm h-[490px] overflow-hidden z-10"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
-        <div className="flex items-center justify-between p-2 border-b">
+        <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">
-            {isLogin ? 'Recruiter Login' : 'Create Recruiter Account'}
+            {isForgotPassword ? 'Forgot Password' : isLogin ? 'Recruiter Login' : 'Create Recruiter Account'}
           </h2>
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
-            className="p-1 rounded-full hover:bg-gray-100 transition-colors"
-            disabled={false} // Allow closing even when loading
+            type="button"
+            onClick={handleClose}
+            className="p-2 -mr-2 text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+            aria-label="Close modal"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
-
         {/* Form */}
-        <div className="p-4 pt-1">
-          <div className="text-center mb-3">
-            <h1 className="text-xl font-bold text-gray-900">
-              {isLogin ? 'Sign in to Job Portal' : 'Create Recruiter Account'}
-            </h1>
-            <p className="text-gray-600 mt-0.5">
-              {isLogin ? 'Access your recruiter dashboard' : 'Join our platform to post jobs'}
-            </p>
-          </div>
+        {!isForgotPassword && (
+          <div className="p-4 pt-1">
+            <div className="text-center mb-3">
+              <h1 className="text-xl font-bold text-gray-900">
+                {isLogin ? 'Sign in to Job Portal' : 'Create Recruiter Account'}
+              </h1>
+              <p className="text-gray-600 mt-0.5">
+                {isLogin ? 'Access your recruiter dashboard' : 'Join our platform to post jobs'}
+              </p>
+            </div>
 
           {!isLogin && currentStep === 3 ? (
             <form onSubmit={handleOtpVerification}>
@@ -571,7 +683,7 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                           value={formData.companyName}
                           onChange={handleInputChange}
                           placeholder="Enter company name"
-                          className="pl-10 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="pl-10 w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                           disabled={isLoading}
                         />
                       </div>
@@ -592,7 +704,7 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                         value={formData.email}
                         onChange={handleInputChange}
                         placeholder="Enter your email"
-                        className="pl-10 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="pl-10 w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         disabled={isLoading}
                       />
                     </div>
@@ -609,7 +721,7 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                         value={formData.password}
                         onChange={handleInputChange}
                         placeholder="Enter your password"
-                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         disabled={isLoading}
                       />
                       <button
@@ -625,9 +737,25 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                         )}
                       </button>
                     </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Password must be at least 6 characters
-                    </p>
+                    <div className="flex items-center justify-between mt-1">
+                      <p className="text-xs text-gray-500">
+                        Password must be at least 6 characters
+                      </p>
+                      {isLogin && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsForgotPassword(true);
+                            setResetEmail('');
+                            setResetEmailSent(false);
+                          }}
+                          className="text-sm text-blue-600 hover:text-blue-500 focus:outline-none"
+                          disabled={isLoading}
+                        >
+                          Forgot password?
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -711,12 +839,12 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      {isLogin ? '🔐 Logging in...' : currentStep === 1 ? '⏭️ Continue' : '📝 Creating Account...'}
+                      {isLogin ? 'Logging in...' : currentStep === 1 ? '⏭️ Continue' : '📝 Creating Account...'}
                     </>
                   ) : !apiAvailable ? (
                     '❌ Server Unavailable'
                   ) : isLogin ? (
-                    '🔐 Login'
+                    'Login'
                   ) : currentStep === 1 ? (
                     '⏭️ Continue'
                   ) : (
@@ -732,27 +860,124 @@ const RecruiterAuthModal = ({ isOpen, onClose, onSuccess }) => {
               </div>
             </form>
           )}
-        </div>
+          </div>
+        )}
+
+        {/* Forgot Password Form */}
+        {isForgotPassword && (
+          <div className="p-4 pt-1">
+            <div className="text-center mb-3">
+              <h1 className="text-xl font-bold text-gray-900">
+                Reset Your Password
+              </h1>
+              <p className="text-gray-600 mt-0.5">
+                Enter your email address and we'll send you a reset link
+              </p>
+            </div>
+
+            {!resetEmailSent ? (
+              <form onSubmit={handleForgotPassword}>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Email Address
+                    </label>
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <Mail className="h-5 w-5 text-gray-400" />
+                      </div>
+                      <input
+                        type="email"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        placeholder="Enter your email"
+                        className="pl-10 w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        disabled={isLoading}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6">
+                  <button
+                    type="submit"
+                    disabled={isLoading || !apiAvailable}
+                    className={`w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white ${
+                      isLoading
+                        ? 'bg-blue-400 cursor-not-allowed'
+                        : !apiAvailable
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
+                    } transition-colors duration-200`}
+                  >
+                    {isLoading ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Sending Reset Link...
+                      </>
+                    ) : !apiAvailable ? (
+                      '❌ Server Unavailable'
+                    ) : (
+                      'Continue'
+                    )}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div className="text-center">
+                <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Check Your Email</h3>
+                <p className="text-gray-600 mb-4">
+                  We've sent a password reset link to <strong>{resetEmail}</strong>
+                </p>
+                <p className="text-sm text-gray-500 mb-6">
+                  The link will expire in 10 minutes. Check your spam folder if you don't see it.
+                </p>
+                <p className="text-sm text-gray-600">
+                  Click the link in your email to reset your password.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Footer */}
         <div className="px-4 py-3 bg-gray-50 border-t text-center">
-          <p className="text-sm text-gray-600">
-            {isLogin ? "Don't have an account? " : 'Already have an account? '}
+          {isForgotPassword ? (
             <button
               type="button"
               onClick={() => {
-                if (isLoading) return;
-                setIsLogin(!isLogin);
-                setCurrentStep(1);
-                setOtp('');
-                setOtpError('');
+                setIsForgotPassword(false);
+                setResetEmail('');
+                setResetEmailSent(false);
               }}
               className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
-              disabled={isLoading}
             >
-              {isLogin ? 'Sign up' : 'Login'}
+              ← Back to Login
             </button>
-          </p>
+          ) : (
+            <p className="text-sm text-gray-600">
+              {isLogin ? "Don't have an account? " : 'Already have an account? '}
+              <button
+                type="button"
+                onClick={() => {
+                  if (isLoading) return;
+                  setIsLogin(!isLogin);
+                  setCurrentStep(1);
+                  setOtp('');
+                  setOtpError('');
+                }}
+                className="font-medium text-blue-600 hover:text-blue-500 focus:outline-none"
+                disabled={isLoading}
+              >
+                {isLogin ? 'Sign up' : 'Login'}
+              </button>
+            </p>
+          )}
         </div>
       </div>
     </div>

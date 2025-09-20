@@ -4,6 +4,7 @@ import { useAuth, SignInButton, SignOutButton, UserButton } from '@clerk/clerk-r
 import { Button } from '../ui/button';
 import { Menu, X } from 'lucide-react';
 import { User } from 'lucide-react';
+import api from '../../utils/api';
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -71,10 +72,27 @@ const Navbar = () => {
   };
 
   const handleRecruiterLogout = () => {
+    // Clear all authentication data
     localStorage.removeItem('recruiterToken');
     localStorage.removeItem('recruiterData');
+    localStorage.removeItem('userToken');
+    localStorage.removeItem('userData');
+
+    // Clear any Clerk-related localStorage items
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('clerk') || key.startsWith('__clerk')) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    // Clear any cached authorization headers
+    delete api.defaults.headers.common['Authorization'];
+
+    // Reset state
     setIsRecruiter(false);
     setCompanyName('');
+
+    // Clear any cached API headers by reloading the page
     window.location.href = '/';
   };
 

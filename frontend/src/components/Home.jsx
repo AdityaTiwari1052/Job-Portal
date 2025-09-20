@@ -17,9 +17,9 @@ function Home() {
     if (location.state?.showRecruiterLogin) {
       openRecruiterModal();
       // Clear the state to prevent reopening on refresh
-      window.history.replaceState({}, document.title);
+      navigate('/', { replace: true, state: {} });
     }
-  }, [location.state, openRecruiterModal]);
+  }, [location.state, openRecruiterModal, navigate]);
 
   return (
     <div className="min-h-screen bg-gray-50">

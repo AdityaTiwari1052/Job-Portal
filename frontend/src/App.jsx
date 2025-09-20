@@ -12,7 +12,7 @@ import PostJob from "./components/admin/PostJob";
 import ApplicantsTable from "./components/admin/ApplicantsTable";
 import UserDashboard from "./components/UserDashboard";
 import RecruiterAuth from "./pages/RecruiterAuth";
-import { ModalProvider } from './context/ModalContext';
+import ResetPassword from "./pages/ResetPassword";
 import { ThemeProvider } from './components/ui/theme-provider';
 import api from './utils/api';
 
@@ -98,15 +98,24 @@ const ProtectedRoute = ({ children }) => {
 };
 
 function App() {
+  // Clear any stale authorization headers on app initialization
+  useEffect(() => {
+    delete api.defaults.headers.common['Authorization'];
+  }, []);
+
   return (
     <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-      <ModalProvider>
-        <Router>
+      <Router>
           <Routes>
             {/* Public routes */}
             <Route element={<PublicRoute><NavbarLayout /></PublicRoute>}>
               <Route path="/" element={<Home />} />
               <Route path="/description/:id" element={<JobDescription />} />
+            </Route>
+
+            {/* Password Reset Route with Navbar */}
+            <Route element={<NavbarLayout />}>
+              <Route path="/reset-password" element={<ResetPassword />} />
             </Route>
 
             {/* Recruiter routes */}
@@ -144,6 +153,7 @@ function App() {
               </SignedIn>
             } />
 
+
             {/* Email verification routes - handled within modals */}
 
             {/* Catch all route */}
@@ -154,7 +164,6 @@ function App() {
           <Toaster position="top-right" richColors />
 
         </Router>
-      </ModalProvider>
     </ThemeProvider>
   );
 }

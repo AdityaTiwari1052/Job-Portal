@@ -12,7 +12,9 @@ export const ModalProvider = ({ children }) => {
 
   const closeRecruiterModal = () => {
     console.log('🔒 Closing recruiter modal');
+    console.log('🔒 Current isRecruiterModalOpen:', isRecruiterModalOpen);
     setIsRecruiterModalOpen(false);
+    console.log('🔒 setIsRecruiterModalOpen(false) called');
   };
 
   return (

@@ -32,6 +32,8 @@ const recruiterSchema = new mongoose.Schema({
   },
   emailVerificationOTP: String,
   emailVerificationOTPExpires: Date,
+  passwordResetToken: String,
+  passwordResetExpires: Date,
   passwordChangedAt: Date,
   createdAt: {
     type: Date,
@@ -91,6 +93,23 @@ recruiterSchema.methods.createEmailVerificationOTP = function() {
   this.emailVerificationOTPExpires = Date.now() + 10 * 60 * 1000;
 
   return otp;
+};
+
+// Method to create password reset token
+recruiterSchema.methods.createPasswordResetToken = function() {
+  // Generate random reset token
+  const resetToken = crypto.randomBytes(32).toString('hex');
+
+  // Hash the token and store it in the database
+  this.passwordResetToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  // Token expires in 10 minutes
+  this.passwordResetExpires = Date.now() + 10 * 60 * 1000;
+
+  return resetToken;
 };
 
 // Check if the model exists before compiling it

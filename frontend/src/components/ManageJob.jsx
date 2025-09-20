@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Pencil, Eye, Trash2, Calendar, MapPin, Users, EyeOff, Loader2 } from 'lucide-react';
+import { Pencil, Trash2, Calendar, MapPin, Users, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import api from '../utils/api';
@@ -52,29 +52,7 @@ const ManageJob = () => {
     }
   };
 
-  const toggleVisibility = async (jobId, currentVisibility) => {
-    try {
-      setUpdating(jobId);
-      
-      const response = await api.patch(`/jobs/${jobId}/visibility`, {
-        isVisible: !currentVisibility
-      });
-      
-      if (response.data?.success) {
-        setJobs(jobs.map(job => 
-          job._id === jobId ? { ...job, isVisible: response.data.isVisible } : job
-        ));
-        toast.success(`Job ${!currentVisibility ? 'published' : 'hidden'} successfully`);
-      } else {
-        throw new Error(response.data?.message || 'Failed to update job visibility');
-      }
-    } catch (error) {
-      console.error('Error toggling visibility:', error);
-      toast.error(error.response?.data?.message || 'Failed to update job visibility');
-    } finally {
-      setUpdating(null);
-    }
-  };
+
 
   const handleDeleteJob = async (jobId) => {
     if (window.confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
@@ -153,9 +131,7 @@ const ManageJob = () => {
                   Applicants
                 </div>
               </th>
-              <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Visibility
-              </th>
+
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
               </th>
@@ -177,24 +153,7 @@ const ManageJob = () => {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {job.applications?.length || 0} applicant{job.applications?.length !== 1 ? 's' : ''}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-center">
-                  <Button
-                    variant={job.isVisible ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => toggleVisibility(job._id, job.isVisible)}
-                    disabled={updating === job._id}
-                    className="w-24"
-                  >
-                    {updating === job._id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : job.isVisible ? (
-                      <Eye className="h-4 w-4 mr-1" />
-                    ) : (
-                      <EyeOff className="h-4 w-4 mr-1" />
-                    )}
-                    {job.isVisible ? 'Visible' : 'Hidden'}
-                  </Button>
-                </td>
+
                 <td className="px-6 py-4 whitespace-nowrap text-center">
                   <Button
                     variant="outline"

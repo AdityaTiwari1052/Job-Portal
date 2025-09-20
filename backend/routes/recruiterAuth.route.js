@@ -374,4 +374,177 @@ router.post('/verify-otp', async (req, res) => {
   }
 });
 
+// @route   POST /api/v1/recruiter/auth/forgot-password
+// @desc    Send password reset email to recruiter
+// @access  Public
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please provide an email address'
+      });
+    }
+
+    // Find recruiter by email
+    const recruiter = await Recruiter.findOne({ email: email.trim().toLowerCase() });
+
+    if (!recruiter) {
+      // Don't reveal if email exists or not for security
+      return res.status(200).json({
+        status: 'success',
+        message: 'If an account with that email exists, a password reset link has been sent.'
+      });
+    }
+
+    // Check if email is verified
+    if (!recruiter.isVerified) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please verify your email address first before resetting password.'
+      });
+    }
+
+    // Generate password reset token
+    const resetToken = recruiter.createPasswordResetToken();
+    await recruiter.save({ validateBeforeSave: false });
+
+    // Send password reset email
+    const resetURL = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
+
+    const mailOptions = {
+      from: process.env.SMTP_USER,
+      to: recruiter.email,
+      subject: 'Password Reset - Job Portal',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h2 style="color: #2563eb; text-align: center;">Password Reset Request</h2>
+          <p>You requested a password reset for your Job Portal account.</p>
+          <p>Please click the button below to reset your password:</p>
+
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetURL}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+              Reset Password
+            </a>
+          </div>
+
+          <p style="color: #6c757d; font-size: 14px;">
+            This link will expire in 10 minutes for security reasons.
+          </p>
+
+          <p style="color: #6c757d; font-size: 14px;">
+            If you didn't request this password reset, please ignore this email.
+          </p>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef; text-align: center; color: #6c757d; font-size: 12px;">
+            <p>This is an automated message from Job Portal. Please do not reply to this email.</p>
+          </div>
+        </div>
+      `
+    };
+
+    try {
+      await transporter.sendMail(mailOptions);
+      console.log('✅ Password reset email sent to:', recruiter.email);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Password reset link sent to your email!'
+      });
+    } catch (emailError) {
+      console.error('❌ Error sending password reset email:', emailError);
+
+      // Clear the reset token if email fails
+      recruiter.passwordResetToken = undefined;
+      recruiter.passwordResetExpires = undefined;
+      await recruiter.save({ validateBeforeSave: false });
+
+      return res.status(500).json({
+        status: 'error',
+        message: 'There was an error sending the email. Please try again later.'
+      });
+    }
+
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Something went wrong. Please try again later.'
+    });
+  }
+});
+
+// @route   POST /api/v1/recruiter/auth/reset-password
+// @desc    Reset recruiter password using token
+// @access  Public
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password, passwordConfirm } = req.body;
+
+    if (!token || !password || !passwordConfirm) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Please provide token, password, and password confirmation'
+      });
+    }
+
+    if (password !== passwordConfirm) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Passwords do not match'
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Password must be at least 6 characters long'
+      });
+    }
+
+    // Hash the token to compare with stored hash
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+
+    // Find recruiter with valid reset token
+    const recruiter = await Recruiter.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: Date.now() }
+    });
+
+    if (!recruiter) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Token is invalid or has expired'
+      });
+    }
+
+    // Update password
+    recruiter.password = password;
+    recruiter.passwordResetToken = undefined;
+    recruiter.passwordResetExpires = undefined;
+    recruiter.passwordChangedAt = Date.now();
+
+    await recruiter.save();
+
+    console.log('✅ Password reset successful for:', recruiter.email);
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Password reset successful! You can now log in with your new password.'
+    });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Something went wrong. Please try again later.'
+    });
+  }
+});
+
 export default router;
